@@ -42,7 +42,6 @@ class Tela(QMainWindow):
         painel_canais = QFrame()
         painel_canais.setFrameShape(QFrame.Shape.StyledPanel)
         painel_canais.setFixedWidth(200)
-
         layout_canais = QVBoxLayout(painel_canais)
         layout_canais.addWidget(QLabel("<b>Canais</b>"))
 
@@ -51,9 +50,51 @@ class Tela(QMainWindow):
         for n in range(1, 5):
             checkbox = QCheckBox(f"Canal {n}")
             checkbox.setChecked(True)
-
             self.checkboxes_canais[n] = checkbox
             layout_canais.addWidget(checkbox)
 
         layout_canais.addStretch()
         layout_principal.addWidget(painel_canais)
+
+        painel_direito = QWidget()
+        layout_direito = QVBoxLayout(painel_direito)
+        layout_direito.setContentsMargins(0, 0, 0, 0)
+        layout_direito.setSpacing(12)
+
+        layout_principal.addWidget(painel_direito, 1)
+        
+        #Painel superior com botões de abrir e exportar
+        painel_controles = QFrame()
+        painel_controles.setFrameShape(QFrame.Shape.StyledPanel)
+        layout_controles = QHBoxLayout(painel_controles)
+        self.abrir = QPushButton("Abrir arquivo")
+        self.exportar = QPushButton("Exportar gráfico")
+        coluna_arquivos = QVBoxLayout()
+        coluna_arquivos.addWidget(self.abrir)
+        coluna_arquivos.addWidget(self.exportar)
+
+        layout_controles.addLayout(coluna_arquivos)
+
+        self.botao_filtros = QPushButton("Filtros")
+        self.botao_filtros.setMenu(menu_filtros)
+        layout_controles.addWidget(self.botao_filtros)
+
+        coluna_calibracao = QVBoxLayout()
+        self.botao_calibracao = QPushButton("Fator de calibração")
+
+        self.campo_calibracao = QDoubleSpinBox()
+        self.campo_calibracao.setDecimals(8)
+        self.campo_calibracao.setRange(0.00000001, 100000000)
+        self.campo_calibracao.setValue(1.0)
+
+        coluna_calibracao.addWidget(self.campo_calibracao)
+        layout_controles.addLayout(coluna_calibracao)
+
+        self.botao_aplicar = QPushButton("Aplicar")
+        layout_controles.addWidget(self.botao_aplicar)
+
+        layout_controles.addStretch()
+        layout_direito.addWidget(painel_controles)
+
+
+
