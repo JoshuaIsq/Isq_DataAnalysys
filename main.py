@@ -35,19 +35,39 @@ titulo = QLabel("Selecione sua placa")
 titulo.setAlignment(Qt.AlignmentFlag.AlignCenter)
 layout.addWidget(titulo)  
 grade = QGridLayout()
+layout.addLayout(grade)
+layout.addStretch()
 
 #Criação dos botões para cada placa
 botao_lynx = QPushButton("Lynx")  
 grade.addWidget(botao_lynx, 0, 0)  
+menu_lynx = QMenu(botao_lynx)
+menu_lynx
+lynx_extensometry = menu_lynx.addAction("Extensometria")
+lynx_aceleromerter = menu_lynx.addAction("Accelerometria")
+botao_lynx.setMenu(menu_lynx)
+
 botão_aeron = QPushButton("Aeron")
 grade.addWidget(botão_aeron, 0, 1)
+menu_aeron = QMenu(botão_aeron)
+aeron_extensometry = menu_aeron.addAction("Extensometria")
+botão_aeron.setMenu(menu_aeron)
+
 botão_national = QPushButton("National")
 grade.addWidget(botão_national, 1, 0)
+menu_national = QMenu(botão_national)
+national_extensometry = menu_national.addAction("Extensometria")
+national_acelerometer = menu_national.addAction("Accelerometria")
+botão_national.setMenu(menu_national)
+
 botão_isq = QPushButton("ISQ")
 grade.addWidget(botão_isq, 1, 1)
+menu_isq = QMenu(botão_isq)
+isq_extensometry = menu_isq.addAction("Extensometria")
+botão_isq.setMenu(menu_isq)
+
 grade.setHorizontalSpacing(20)
-grade.setVerticalSpacing(20)
-layout.addLayout(grade)
+
 
 janela.show()  
 
