@@ -62,7 +62,7 @@ class Tela(QMainWindow):
         layout_direito.setSpacing(12)
 
         layout_principal.addWidget(painel_direito, 1)
-        
+
         #Painel superior com botões de abrir e exportar
         painel_controles = QFrame()
         painel_controles.setFrameShape(QFrame.Shape.StyledPanel)
@@ -95,6 +95,21 @@ class Tela(QMainWindow):
 
         layout_controles.addStretch()
         layout_direito.addWidget(painel_controles)
+
+        menu_exportar = QMenu()
+        menu_exportar.addAction(self.exportar_graf)
+        menu_exportar.addAction(self.exportar_dados)
+        self.exportar.setMenu(menu_exportar)
+
+        self.grafico = pg.PlotWidget()
+        self.grafico.setBackground("w")
+        self.grafico.setLabel("bottom", "Tempo", units="s")
+        self.grafico.setLabel("left", "Valor")
+        self.grafico.showGrid(x=True, y=True, alpha=0.25)
+
+        layout_direito.addWidget(self.grafico, 1)
+
+
 
 
 
