@@ -3,6 +3,8 @@ from PySide6.QtWidgets import (
     QLabel, QCheckBox, QPushButton, QDoubleSpinBox, QMenu
 )
 
+from controle_filtros import ControleFiltros
+
 import pyqtgraph as pg
 
 class Tela(QMainWindow):
@@ -75,23 +77,9 @@ class Tela(QMainWindow):
 
         layout_controles.addLayout(coluna_arquivos)
 
-        self.botao_filtros = QPushButton("Filtros")
-        self.botao_filtros.setMenu(menu_filtros)
-        layout_controles.addWidget(self.botao_filtros)
-
-        coluna_calibracao = QVBoxLayout()
-        self.botao_calibracao = QPushButton("Fator de calibração")
-
-        self.campo_calibracao = QDoubleSpinBox()
-        self.campo_calibracao.setDecimals(8)
-        self.campo_calibracao.setRange(0.00000001, 100000000)
-        self.campo_calibracao.setValue(1.0)
-
-        coluna_calibracao.addWidget(self.campo_calibracao)
-        layout_controles.addLayout(coluna_calibracao)
-
-        self.botao_aplicar = QPushButton("Aplicar")
-        layout_controles.addWidget(self.botao_aplicar)
+        self.calibração = ControleFiltros("Fator de calibração")
+        layout_controles.addWidget(self.calibração)
+        self.calibração.botao.clicked.connect(self.registrar_calibracao)
 
         layout_controles.addStretch()
         layout_direito.addWidget(painel_controles)
@@ -108,6 +96,11 @@ class Tela(QMainWindow):
         self.grafico.showGrid(x=True, y=True, alpha=0.25)
 
         layout_direito.addWidget(self.grafico, 1)
+
+    def registrar_calibracao(self):
+        self.fator_calibracao = self.calibração.campo.value()
+
+        self.statusBar().showMessage(f"Fator selecionado: {self.fator_calibracao}")
 
 
 
