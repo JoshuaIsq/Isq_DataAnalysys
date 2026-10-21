@@ -11,8 +11,21 @@ from PySide6.QtWidgets import QMenu, QApplication, QWidget, QLabel, QPushButton,
 from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
+from tela_lynx_acm import TelaLynxAcelerometria
 
 app = QApplication(sys.argv)  
+janela_lynx = None
+
+
+def abrir_lynx_acelerometria():
+    global janela_lynx
+
+    if janela_lynx is None:
+        janela_lynx = TelaLynxAcelerometria()
+
+    janela_lynx.show()
+    janela_lynx.raise_()
+    janela_lynx.activateWindow()
 
 # Cria uma instância de um widget, que será a janela principal da aplicação
 janela = QWidget()  
@@ -44,7 +57,8 @@ grade.addWidget(botao_lynx, 0, 0)
 menu_lynx = QMenu(botao_lynx)
 menu_lynx
 lynx_extensometry = menu_lynx.addAction("Extensometria")
-lynx_aceleromerter = menu_lynx.addAction("Accelerometria")
+lynx_aceleromerter = menu_lynx.addAction("Acelerometria")
+lynx_aceleromerter.triggered.connect(abrir_lynx_acelerometria)
 botao_lynx.setMenu(menu_lynx)
 
 botão_aeron = QPushButton("Aeron")
@@ -57,7 +71,7 @@ botão_national = QPushButton("National")
 grade.addWidget(botão_national, 1, 0)
 menu_national = QMenu(botão_national)
 national_extensometry = menu_national.addAction("Extensometria")
-national_acelerometer = menu_national.addAction("Accelerometria")
+national_acelerometer = menu_national.addAction("Acelerometria")
 botão_national.setMenu(menu_national)
 
 botão_isq = QPushButton("ISQ")
