@@ -1,10 +1,8 @@
 from pathlib import Path
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QCheckBox, QPushButton,
-    QDoubleSpinBox, QLabel, QFileDialog, QMessageBox,
-)
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QCheckBox, 
+                               QPushButton, QDoubleSpinBox, QLabel, QFileDialog, QMessageBox,)
 from tela import Tela
 from leitor_lynx_acm import ler_lynx_acelerometria
 from processamento import Processamento

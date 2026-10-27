@@ -1,11 +1,15 @@
 from PySide6.QtWidgets import (
     QGridLayout, QMainWindow, QWidget, QFrame, QHBoxLayout, QVBoxLayout,
-    QLabel, QCheckBox, QPushButton, QDoubleSpinBox, QMenu, QSpinBox, QMessageBox
+    QLabel, QCheckBox, QPushButton, QDoubleSpinBox, QMenu, QSpinBox, QMessageBox, QFileDialog
 )
-
+from pathlib import Path
+from datetime import datetime
+import matplotlib as mpl
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_svg import FigureCanvasSVG
 from controle_filtros import ControleFiltros
 from processamento import Processamento
-
+from exportacao_html import criar_figura_html, ler_inicio_lynx
 import pyqtgraph as pg
 
 class Tela(QMainWindow):
@@ -149,10 +153,16 @@ class Tela(QMainWindow):
             controle.botao.clicked.connect(lambda marcado=False, 
                     chave=nome: self.registrar_parametro(chave))
 
-        menu_exportar = QMenu()
-        menu_exportar.addAction(self.exportar_graf)
-        menu_exportar.addAction(self.exportar_dados)
-        self.exportar.setMenu(menu_exportar)
+        self.menu_exportar = QMenu(self.exportar)
+
+        acao_svg = self.menu_exportar.addAction("SVG vetorial")
+        acao_html = self.menu_exportar.addAction("HTML interativo")
+
+        acao_svg.triggered.connect(self.exportar_svg)
+        acao_html.triggered.connect(self.exportar_html)
+
+        self.exportar.setText("Exportar")
+        self.exportar.setMenu(self.menu_exportar)
 
         self.criar_graficos(layout_direito)
 
@@ -211,5 +221,223 @@ class Tela(QMainWindow):
         self.grafico.setLabel('bottom', 'Tempo', units='s')
         self.grafico.setLabel('left', 'Valor')
         layout_direito.addWidget(self.grafico, 1)
+
+    def exportar_svg(self):
+        if getattr(self, "df_sensores", None) is None:
+            QMessageBox.information(
+                self,
+                "Exportação",
+                "Abra um arquivo primeiro."
+            )
+            return
+
+        # Extensometria: um gráfico.
+        # Acelerometria: os três gráficos dos eixos.
+        if isinstance(self.grafico, pg.PlotWidget):
+            plots = [self.grafico.getPlotItem()]
+        else:
+            plots = list(self.graficos_eixos.values())
+
+        # Exporta somente as curvas que estão selecionadas.
+        selecionadas = [
+            [
+                curva
+                for curva in plot.listDataItems()
+                if curva.isVisible()
+            ]
+            for plot in plots
+        ]
+
+        if not any(selecionadas):
+            QMessageBox.information(
+                self,
+                "Exportação",
+                "Selecione pelo menos um canal."
+            )
+            return
+
+        pasta = QFileDialog.getExistingDirectory(
+            self,
+            "Escolha a pasta para salvar o SVG"
+        )
+
+        if not pasta:
+            return
+
+        nome = (
+            f"grafico_{datetime.now():%Y%m%d_%H%M%S_%f}.svg"
+        )
+        caminho = Path(pasta) / nome
+
+        figura = None
+
+        try:
+            # Preserva os pontos das curvas e desenha as letras
+            # como vetores, sem depender das fontes de outro PC.
+            with mpl.rc_context({"path.simplify": False, "svg.fonttype": "path"}):
+                figura = Figure(figsize=(12, 4 * len(plots)), layout="constrained")
+
+                FigureCanvasSVG(figura)
+
+                eixos = figura.subplots(nrows=len(plots), ncols=1,
+                squeeze=False
+                )
+
+                for linha, (plot, curvas) in enumerate(zip(plots, selecionadas)):
+                    eixo = eixos[linha, 0]
+
+                    eixo_x = plot.getAxis("bottom")
+                    eixo_y = plot.getAxis("left")
+
+                    # Mantém a escala logarítmica, se estiver ativa.
+                    if eixo_x.logMode:
+                        eixo.set_xscale("log")
+
+                    if eixo_y.logMode:
+                        eixo.set_yscale("log")
+
+                    for curva in curvas:
+                        # Dados completos enviados à curva:
+                        # já incluem os tratamentos e o RMS, se ativo.
+                        x, y = curva.getOriginalDataset()
+
+                        if x is None or y is None or len(x) == 0:
+                            continue
+
+                        cor = pg.mkPen(curva.opts["pen"]).color()
+
+                        eixo.plot(
+                            x,
+                            y,
+                            label=curva.name() or "Canal",
+                            color=cor.name(),
+                            alpha=cor.alphaF(),
+                            linewidth=0.8,
+                            rasterized=False
+                        )
+
+                    rotulo_x = eixo_x.labelText or "Tempo"
+                    rotulo_y = eixo_y.labelText or "Valor"
+
+                    if eixo_x.labelUnits:
+                        rotulo_x += f" ({eixo_x.labelUnits})"
+
+                    if eixo_y.labelUnits:
+                        rotulo_y += f" ({eixo_y.labelUnits})"
+
+                    eixo.set_xlabel(rotulo_x)
+                    eixo.set_ylabel(rotulo_y)
+
+                    eixo.set_title(
+                        plot.titleLabel.text or self.windowTitle()
+                    )
+
+                    eixo.grid(True, alpha=0.25)
+
+                    if eixo.lines:
+                        eixo.legend(
+                            loc="upper left",
+                            ncol=4,
+                            fontsize=8
+                        )
+
+                figura.savefig(str(caminho), format="svg")
+
+        except Exception as erro:
+            QMessageBox.warning(self, "Falha ao exportar SVG", str(erro))
+            return
+
+        finally:
+            if figura is not None:
+                figura.clear()
+
+        self.statusBar().showMessage(f"SVG salvo em: {caminho}")
+
+        QMessageBox.information(self, "Exportação concluída", f"Arquivo salvo em:\n{caminho}")
+
+
+    def exportar_html(self):
+        if getattr(self, "df_sensores", None) is None:
+            QMessageBox.information(
+                self,
+                "Exportação",
+                "Abra um arquivo primeiro.",
+            )
+            return
+
+        # Extensometria: um gráfico.
+        # Acelerometria: os três gráficos dos eixos.
+        if isinstance(self.grafico, pg.PlotWidget):
+            plots = [self.grafico.getPlotItem()]
+        else:
+            plots = list(self.graficos_eixos.values())
+
+        tem_selecao = any(
+            curva.isVisible()
+            for plot in plots
+            for curva in plot.listDataItems()
+        )
+
+        if not tem_selecao:
+            QMessageBox.information(
+                self,
+                "Exportação",
+                "Selecione pelo menos um canal.",
+            )
+            return
+
+        pasta = QFileDialog.getExistingDirectory(
+            self,
+            "Escolha a pasta para salvar o HTML interativo",
+        )
+
+        if not pasta:
+            return
+
+        nome = f"grafico_{datetime.now():%Y%m%d_%H%M%S_%f}.html"
+        caminho = Path(pasta) / nome
+
+        try:
+            inicio = ler_inicio_lynx(
+                getattr(self, "caminho_atual", None)
+            )
+
+            figura = criar_figura_html(
+                plots,
+                inicio=inicio,
+                titulo=self.windowTitle(),
+            )
+
+            figura.write_html(
+                str(caminho),
+                include_plotlyjs=True,
+                full_html=True,
+                auto_open=False,
+                config={
+                    "scrollZoom": True,
+                    "displaylogo": False,
+                    "responsive": True,
+                },
+            )
+
+        except Exception as erro:
+            QMessageBox.warning(
+                self,
+                "Falha ao exportar HTML",
+                str(erro),
+            )
+            return
+
+        self.statusBar().showMessage(
+            f"HTML salvo em: {caminho}"
+        )
+
+        QMessageBox.information(
+            self,
+            "Exportação concluída",
+            f"Arquivo salvo em:\n{caminho}\n\n"
+            "Abra esse arquivo no navegador para consultar "
+            "os valores passando o mouse sobre as curvas.",
+        )
 
 

@@ -1,10 +1,4 @@
-#QApplication: é responsável por gerenciar a aplicação Qt, incluindo a inicialização e o loop de eventos.
-#QWidget: é a classe base para todos os widgets do Qt, que são os elementos da interface gráfica do usuário (GUI).
-#QLabel: é um widget que exibe texto ou imagens.
-#QPushButton: é um widget que representa um botão clicável.
-#QVBoxLayout: é um gerenciador de layout que organiza os widgets verticalmente.
-#Qmenu: é um widget que representa um menu suspenso nas nossas opções
-#Qpixmap: é uma classe que representa uma imagem em memória, que pode ser exibida em um QLabel ou outros widgets.
+
 
 import sys
 from PySide6.QtWidgets import QMenu, QApplication, QWidget, QLabel, QPushButton, QVBoxLayout, QGridLayout
@@ -12,20 +6,28 @@ from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
 from tela_lynx_acm import TelaLynxAcelerometria
+from tela_lynx_ext import TelaLynxExtensometria
 
-app = QApplication(sys.argv)  
+app = QApplication(sys.argv) 
+
+#Abre a janela lynx na janela inicial
 janela_lynx = None
-
-
 def abrir_lynx_acelerometria():
     global janela_lynx
-
     if janela_lynx is None:
         janela_lynx = TelaLynxAcelerometria()
-
     janela_lynx.show()
     janela_lynx.raise_()
     janela_lynx.activateWindow()
+
+janela_lynx_ext = None
+def abrir_lynx_extensometria():
+    global janela_lynx_ext
+    if janela_lynx_ext is None:
+        janela_lynx_ext = TelaLynxExtensometria()
+    janela_lynx_ext.show()
+    janela_lynx_ext.raise_()
+    janela_lynx_ext.activateWindow()
 
 # Cria uma instância de um widget, que será a janela principal da aplicação
 janela = QWidget()  
@@ -59,6 +61,7 @@ menu_lynx
 lynx_extensometry = menu_lynx.addAction("Extensometria")
 lynx_aceleromerter = menu_lynx.addAction("Acelerometria")
 lynx_aceleromerter.triggered.connect(abrir_lynx_acelerometria)
+lynx_extensometry.triggered.connect(abrir_lynx_extensometria)
 botao_lynx.setMenu(menu_lynx)
 
 botão_aeron = QPushButton("Aeron")
@@ -81,7 +84,6 @@ isq_extensometry = menu_isq.addAction("Extensometria")
 botão_isq.setMenu(menu_isq)
 
 grade.setHorizontalSpacing(20)
-
 
 janela.show()  
 
