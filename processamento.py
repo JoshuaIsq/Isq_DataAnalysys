@@ -171,3 +171,21 @@ class Processamento:
         info = {"amostras_por_janela": n, "janela_efetiva_s": n / fs,
                 "ultima_janela": tamanhos[-1], "descartadas": len(dados) - sum(tamanhos)}
         return np.asarray(tempos_rms), pd.DataFrame(valores_rms, columns=dados.columns), info
+
+    def fft_ac(tempo, dados):
+        """Espectro unilateral de amplitude de pico, sem média, em unidades do sinal.
+
+        Usa todo o registro, com janela retangular. A resolução é fs/N;
+        frequências fora dos bins podem apresentar vazamento espectral.
+        DC e Nyquist (quando presente) não recebem o fator dois.
+        """
+        fs = Processamento.validar_dados(tempo, dados)
+        valores = dados.to_numpy(dtype=float)
+        n = len(valores)
+        centralizado = valores - valores.mean(axis=0)
+        amplitudes = np.abs(np.fft.rfft(centralizado, axis=0)) / n
+        if n % 2 == 0:
+            amplitudes[1:-1] *= 2
+        else:
+            amplitudes[1:] *= 2
+        frequencias = np.fft.rfftfreq(n, d=1 / fs)

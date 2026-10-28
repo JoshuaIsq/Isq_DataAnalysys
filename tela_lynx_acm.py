@@ -43,6 +43,14 @@ class TelaLynxAcelerometria(Tela):
         self.checkbox_log_rms = QCheckBox("RMS em escala logarítmica")
         self.checkbox_log_rms.setEnabled(False)
         self.checkbox_log_rms.setToolTip("RMS igual a zero fica sem ponto na escala logarítmica.")
+        self.botao_fft = QPushButton("FFT")
+        self.botao_fft.setCheckable(True)
+        self.botao_fft.setEnabled(False)
+        self.botao_fft.setToolTip(
+            "Espectro de amplitude de pico do sinal tratado, sem média. "
+            "Usa todo o registro com janela retangular; desmarque para voltar ao tempo."
+        )
+        linha.addWidget(self.botao_fft)
         linha.addWidget(self.botao_rms)
         linha.addWidget(QLabel("Janela RMS:"))
         linha.addWidget(self.campo_janela_rms)
