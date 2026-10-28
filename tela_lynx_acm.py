@@ -24,6 +24,7 @@ class TelaLynxAcelerometria(Tela):
         self.caminho_atual = None
         self.info_processamento = {}
         self.info_rms = None
+        self.info_fft = None
         self.abrir.clicked.connect(self.carregar_arquivo_lynx)
         self.abrir_arquivo.triggered.connect(self.carregar_arquivo_lynx)
         self.criar_controles_rms()
@@ -57,7 +58,12 @@ class TelaLynxAcelerometria(Tela):
         linha.addWidget(self.checkbox_log_rms)
         linha.addStretch()
         self.layout_controles.addLayout(linha, 4, 0, 1, 4)
-        self.botao_rms.toggled.connect(self.mudar_visualizacao)
+        self.botao_rms.toggled.connect(
+            lambda marcado: self.alternar_modo(self.botao_rms, marcado)
+        )
+        self.botao_fft.toggled.connect(
+            lambda marcado: self.alternar_modo(self.botao_fft, marcado)
+        )
         self.campo_janela_rms.editingFinished.connect(self.mudar_visualizacao)
         self.checkbox_log_rms.toggled.connect(self.mudar_visualizacao)
 
@@ -83,6 +89,10 @@ class TelaLynxAcelerometria(Tela):
         self.botao_rms.blockSignals(True)
         self.botao_rms.setChecked(False)
         self.botao_rms.blockSignals(False)
+        self.botao_fft.blockSignals(True)
+        self.botao_fft.setChecked(False)
+        self.botao_fft.blockSignals(False)
+        self.botao_fft.setEnabled(True)
         self.botao_rms.setEnabled(True)
         self.campo_janela_rms.setEnabled(True)
         self.campo_janela_rms.setRange(2 / fs, len(tempo) / fs)
@@ -138,78 +148,162 @@ class TelaLynxAcelerometria(Tela):
             curva.setVisible(self.checkboxes_canais[numero].isChecked()
                              and self.checkboxes_eixos[(numero, eixo)].isChecked())
 
+    def alternar_modo(self, botao, marcado):
+        if marcado:
+            outro = (
+                self.botao_fft
+                if botao is self.botao_rms
+                else self.botao_rms
+            )
+            outro.blockSignals(True)
+            outro.setChecked(False)
+            outro.blockSignals(False)
+
+        self.mudar_visualizacao()
+
     def mudar_visualizacao(self, *args):
         if self.df_sensores is None:
             return
+
         self.checkbox_log_rms.setEnabled(self.botao_rms.isChecked())
+        self.campo_janela_rms.setEnabled(
+            not self.botao_fft.isChecked()
+        )
+
         try:
             self.plotar_dados_lynx()
         except ValueError as erro:
-            QMessageBox.warning(self, "Janela RMS inválida", str(erro))
-            self.botao_rms.blockSignals(True)
-            self.botao_rms.setChecked(False)
-            self.botao_rms.blockSignals(False)
+            QMessageBox.warning(
+                self, "Visualização inválida", str(erro)
+            )
+
+            for botao in (self.botao_rms, self.botao_fft):
+                botao.blockSignals(True)
+                botao.setChecked(False)
+                botao.blockSignals(False)
+
             self.checkbox_log_rms.setEnabled(False)
+            self.campo_janela_rms.setEnabled(True)
             self.plotar_dados_lynx()
 
     def atualizar_graficos(self):
         self.mudar_visualizacao()
 
     def restaurar_original(self):
-        self.botao_rms.blockSignals(True)
-        self.botao_rms.setChecked(False)
-        self.botao_rms.blockSignals(False)
+        for botao in (self.botao_rms, self.botao_fft):
+            botao.blockSignals(True)
+            botao.setChecked(False)
+            botao.blockSignals(False)
+
         self.checkbox_log_rms.setEnabled(False)
         super().restaurar_original()
 
     def plotar_dados_lynx(self):
         if self.df_sensores is None:
             return
+
         rms = self.botao_rms.isChecked()
+        fft = self.botao_fft.isChecked()
         log = rms and self.checkbox_log_rms.isChecked()
+
         self.info_rms = None
-        if rms:
-            tempo_plot, dados_plot, self.info_rms = Processamento.rms_ac(
-                self.tempo, self.df_sensores, self.campo_janela_rms.value()
+        self.info_fft = None
+
+        if fft:
+            tempo_plot, dados_plot, self.info_fft = Processamento.fft_ac(
+                self.tempo, self.df_sensores
             )
-            dados_plot = dados_plot * 1000  # Apenas a apresentação RMS passa de g para mg.
+            rotulo, unidade = "Amplitude de pico (AC)", "g"
+            titulo_modo = "FFT"
+
+        elif rms:
+            tempo_plot, dados_plot, self.info_rms = Processamento.rms_ac(
+                self.tempo,
+                self.df_sensores,
+                self.campo_janela_rms.value(),
+            )
+            dados_plot = dados_plot * 1000
             rotulo, unidade = "RMS AC", "mg"
+            titulo_modo = "RMS AC"
+
         else:
             tempo_plot, dados_plot = self.tempo, self.df_sensores
             rotulo, unidade = "Aceleração", "g"
+            titulo_modo = "sinal no tempo"
+
         self.curvas_lynx.clear()
+
         for eixo, grafico in self.graficos_eixos.items():
             grafico.clear()
             grafico.setLogMode(x=False, y=log)
-            grafico.setTitle(f"Eixo {eixo} — {'RMS AC' if rms else 'sinal no tempo'}", color="#333333")
+            grafico.setTitle(
+                f"Eixo {eixo} — {titulo_modo}",
+                color="#333333",
+            )
             grafico.setLabel("left", rotulo, units=unidade)
+            grafico.setLabel(
+                "bottom",
+                "Frequência" if fft else "Tempo",
+                units="Hz" if fft else "s",
+            )
+
         cores = ["#1565C0", "#D55E00", "#18864B", "#8E44AD"]
+
         for numero, sensor in enumerate(self.sensores_lynx, start=1):
             for eixo in "XYZ":
                 valores = dados_plot[f"{sensor} - {eixo}"].to_numpy()
+
                 if log:
                     valores = np.where(valores > 0, valores, np.nan)
+
                 curva = self.graficos_eixos[eixo].plot(
-                    tempo_plot, valores, pen=pg.mkPen(cores[numero - 1], width=1),
-                    name=sensor, connect="finite",
+                    tempo_plot,
+                    valores,
+                    pen=pg.mkPen(cores[numero - 1], width=1),
+                    name=sensor,
+                    connect="finite",
                 )
                 self.curvas_lynx[(numero, eixo)] = curva
+
         self.atualizar_visibilidade()
+
         for grafico in self.graficos_eixos.values():
             grafico.enableAutoRange()
+
         fs = self.info_processamento["fs"]
         modo = "Sinal no tempo"
-        if rms:
+
+        if fft:
+            resolucao = self.info_fft["resolucao_hz"]
+            modo = (
+                f"FFT AC: amplitude de pico, Δf = {resolucao:g} Hz; "
+                "janela retangular"
+            )
+
+        elif rms:
             info = self.info_rms
-            modo = f"RMS AC: {info['janela_efetiva_s']:g} s, {info['amostras_por_janela']} amostras/janela"
+            modo = (
+                f"RMS AC: {info['janela_efetiva_s']:g} s, "
+                f"{info['amostras_por_janela']} amostras/janela"
+            )
+
             if info["ultima_janela"] < info["amostras_por_janela"]:
                 modo += f"; última parcial: {info['ultima_janela']}"
+
             if info["descartadas"]:
-                modo += f"; amostra final isolada omitida: {info['descartadas']}"
+                modo += (
+                    "; amostra final isolada omitida: "
+                    f"{info['descartadas']}"
+                )
+
             if log:
                 modo += "; log (zeros sem ponto)"
-        substituidas = sum(self.info_processamento.get("substituicoes", {}).values())
+
+        substituidas = sum(
+            self.info_processamento.get("substituicoes", {}).values()
+        )
         self.statusBar().showMessage(
-            f"{self.caminho_atual.name} | {fs:g} Hz | {len(self.tempo)} amostras | "
-            f"{modo} | {substituidas} substituições de outliers"
+            f"{self.caminho_atual.name} | {fs:g} Hz | "
+            f"{len(self.tempo)} amostras | {modo} | "
+            f"{substituidas} substituições de outliers"
         )
