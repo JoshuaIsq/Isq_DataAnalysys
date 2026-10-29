@@ -60,6 +60,8 @@ def criar_figura_html(plots, inicio=None, titulo="Dados tratados"):
     for linha, plot in enumerate(plots, start=1):
         eixo_x = plot.getAxis("bottom")
         eixo_y = plot.getAxis("left")
+        rotulo_x = eixo_x.labelText or "Tempo"
+        unidade_x = eixo_x.labelUnits or ""
 
         unidade = eixo_y.labelUnits or ""
 
@@ -101,7 +103,7 @@ def criar_figura_html(plots, inicio=None, titulo="Dados tratados"):
 
             else:
                 x_html = segundos
-                texto_tempo = "Tempo: %{x:.6f} s"
+                texto_tempo = escape(rotulo_x) + ": %{x:.6f} " + escape(unidade_x)
 
             nome = escape(curva.name() or "Canal")
             cor = pg.mkPen(curva.opts["pen"]).color()
@@ -146,26 +148,25 @@ def criar_figura_html(plots, inicio=None, titulo="Dados tratados"):
             col=1,
         )
 
-        # Limites para os gráficos de tensão mecânica em MPa.
-        if unidade.strip().lower() == "mpa" and not eixo_y.logMode:
-            figura.update_yaxes(
-                range=[-50, 50],
-                autorange=False,
-                fixedrange=True,
-                dtick=10,
-                row=linha,
-                col=1,
-            )
+        # Preserva a escala escolhida na análise, inclusive na extensometria.
+        faixa_x, faixa_y = plot.viewRange()
+        figura.update_yaxes(range=faixa_y, autorange=False, row=linha, col=1)
+        if usar_data:
+            faixa_x = (np.datetime64(inicio, "us") +
+                       np.rint(np.asarray(faixa_x) * 1_000_000).astype("timedelta64[us]")).astype(str).tolist()
 
         figura.update_xaxes(
             title_text=(
-                "Data/Hora (UTC)" if usar_data else "Tempo (s)"
+                "Data/Hora (UTC)" if usar_data else
+                escape(rotulo_x + (f" ({unidade_x})" if unidade_x else ""))
             ),
             type=(
                 "date"
                 if usar_data
                 else ("log" if eixo_x.logMode else "linear")
             ),
+            range=faixa_x,
+            autorange=False,
             row=linha,
             col=1,
         )

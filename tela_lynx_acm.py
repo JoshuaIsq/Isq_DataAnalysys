@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QCheckBox,
                                QPushButton, QDoubleSpinBox, QLabel, QFileDialog, QMessageBox,)
 from tela import Tela
 from leitor_lynx_acm import ler_lynx_acelerometria
+from leitor_lynx import LinhaFinalIncompleta, aviso_unidades
 from processamento import Processamento
 
 
@@ -12,17 +13,17 @@ class TelaLynxAcelerometria(Tela):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Análise de dados - Lynx Acelerometria")
-        for numero, checkbox in self.checkboxes_canais.items():
-            checkbox.setText(f"Acelerômetro {numero}")
         self.checkboxes_eixos = {}
         self.curvas_lynx = {}
-        self.adicionar_checkboxes_eixos()
+        self.grupos_eixos = []
+        self.recriar_sensores([])
         self.tempo = None
         self.df_original = None
         self.df_sensores = None
         self.sensores_lynx = []
         self.caminho_atual = None
         self.info_processamento = {}
+        self.info_arquivo = {}
         self.info_rms = None
         self.info_fft = None
         self.abrir.clicked.connect(self.carregar_arquivo_lynx)
@@ -70,12 +71,24 @@ class TelaLynxAcelerometria(Tela):
     def carregar_arquivo_lynx(self):
         caminho, _ = QFileDialog.getOpenFileName(self, "Abrir acelerometria Lynx", "", "Arquivos CSV (*.csv)")
         if caminho:
-            self.importar_caminho(caminho)
+            try:
+                self.importar_caminho(caminho)
+            except LinhaFinalIncompleta as erro:
+                resposta = QMessageBox.question(
+                    self, "Última linha incompleta",
+                    str(erro) + "\n\nDeseja ignorar somente essa última linha?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No,
+                )
+                if resposta == QMessageBox.StandardButton.Yes:
+                    self.importar_caminho(caminho, ignorar_ultima_incompleta=True)
 
-    def importar_caminho(self, caminho):
+    def importar_caminho(self, caminho, ignorar_ultima_incompleta=False):
         try:
-            tempo, canais, sensores = ler_lynx_acelerometria(caminho)
+            tempo, canais, sensores, info = ler_lynx_acelerometria(caminho, ignorar_ultima_incompleta)
             fs = Processamento.validar_dados(tempo, canais)
+        except LinhaFinalIncompleta:
+            raise
         except (OSError, ValueError) as erro:
             QMessageBox.warning(self, "Falha ao importar", str(erro))
             return False
@@ -83,6 +96,7 @@ class TelaLynxAcelerometria(Tela):
         self.df_original = canais.copy()
         self.df_sensores = canais.copy()
         self.sensores_lynx = sensores
+        self.info_arquivo = info
         self.caminho_atual = Path(caminho)
         self.config_filtros = {}
         self.info_processamento = {"fs": fs, "substituicoes": {}}
@@ -97,10 +111,12 @@ class TelaLynxAcelerometria(Tela):
         self.campo_janela_rms.setEnabled(True)
         self.campo_janela_rms.setRange(2 / fs, len(tempo) / fs)
         self.checkbox_log_rms.setEnabled(False)
-        for numero, sensor in enumerate(sensores, start=1):
-            self.checkboxes_canais[numero].setText(sensor)
+        self.recriar_sensores(sensores)
         self.atualizar_indicacao_filtros()
         self.plotar_dados_lynx()
+        aviso = aviso_unidades(info, "acelerometria")
+        if aviso:
+            QMessageBox.warning(self, "Canais de outra medição", aviso)
         return True
 
     def criar_graficos(self, layout_direito):
@@ -122,14 +138,36 @@ class TelaLynxAcelerometria(Tela):
         self.graficos_eixos["Z"].setXLink(self.graficos_eixos["X"])
         layout_direito.addWidget(self.grafico, 1)
 
+    def recriar_sensores(self, sensores):
+        for widget in list(self.checkboxes_canais.values()) + self.grupos_eixos:
+            self.layout_canais.removeWidget(widget)
+            widget.hide()
+            widget.deleteLater()
+        self.checkboxes_canais = {}
+        self.checkboxes_eixos = {}
+        self.grupos_eixos = []
+        for numero, sensor in enumerate(sensores, 1):
+            checkbox = QCheckBox(f"Acelerômetro {numero}")
+            checkbox.setChecked(True)
+            checkbox.setToolTip("\n".join(
+                f"{eixo}: Canal {n} — {self.info_arquivo['nomes'][n]}"
+                for eixo, n in sensor.items()
+            ))
+            self.layout_canais.insertWidget(self.layout_canais.count() - 1, checkbox)
+            self.checkboxes_canais[numero] = checkbox
+        self.adicionar_checkboxes_eixos()
+
     def adicionar_checkboxes_eixos(self):
         for numero, checkbox_sensor in self.checkboxes_canais.items():
             grupo = QWidget()
+            self.grupos_eixos.append(grupo)
             layout = QVBoxLayout(grupo)
             layout.setContentsMargins(20, 0, 0, 0)
             layout.setSpacing(4)
             for eixo in "XYZ":
-                checkbox = QCheckBox(f"Eixo {eixo}")
+                n = self.sensores_lynx[numero - 1][eixo]
+                checkbox = QCheckBox(f"{eixo}: Canal {n} — {self.info_arquivo['nomes'][n]}")
+                checkbox.setToolTip(checkbox.text())
                 checkbox.setChecked(True)
                 self.checkboxes_eixos[(numero, eixo)] = checkbox
                 layout.addWidget(checkbox)
@@ -251,7 +289,8 @@ class TelaLynxAcelerometria(Tela):
 
         for numero, sensor in enumerate(self.sensores_lynx, start=1):
             for eixo in "XYZ":
-                valores = dados_plot[f"{sensor} - {eixo}"].to_numpy()
+                n = sensor[eixo]
+                valores = dados_plot[n].to_numpy()
 
                 if log:
                     valores = np.where(valores > 0, valores, np.nan)
@@ -259,8 +298,8 @@ class TelaLynxAcelerometria(Tela):
                 curva = self.graficos_eixos[eixo].plot(
                     tempo_plot,
                     valores,
-                    pen=pg.mkPen(cores[numero - 1], width=1),
-                    name=sensor,
+                    pen=pg.mkPen(cores[(numero - 1) % len(cores)], width=1),
+                    name=f"Canal {n} — {self.info_arquivo['nomes'][n]}",
                     connect="finite",
                 )
                 self.curvas_lynx[(numero, eixo)] = curva

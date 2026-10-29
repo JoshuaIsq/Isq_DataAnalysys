@@ -1,56 +1,16 @@
-import csv
-import numpy as np
-import pandas as pd
+"""Acelerometria: trios X/Y/Z na ordem dos canais de aceleração do CSV."""
+from leitor_lynx import ler_canais_lynx
 
-def ler_lynx_acelerometria(caminho):
-    # Lê as cinco primeiras linhas do arquivo.
-    with open(caminho, encoding="utf-8-sig", newline="") as arquivo:
-        leitor = csv.reader(arquivo, delimiter=";")
-        cabecalho = [next(leitor, []) for _ in range(5)]
 
-    if (not cabecalho[0] or cabecalho[0][0] != "Name" or cabecalho[4] != ["Time (s)"]):
-        raise ValueError("O arquivo não possui o cabeçalho Lynx esperado.")
-
-    # A primeira linha contém os nomes dos 12 canais.
-    nomes = [nome.strip() for nome in cabecalho[0][1:13]]
-
-    sensores = []
-
-    for nome in nomes:
-        sensor = nome.rsplit(" - ", 1)[0]
-
-        if sensor not in sensores:
-            sensores.append(sensor)
-
-    esperados = {f"{sensor} - {eixo}" for sensor in sensores for eixo in ("X", "Y", "Z")}
-
-    if len(sensores) != 4 or len(nomes) != 12 or set(nomes) != esperados:
-        raise ValueError("Esperados quatro sensores com os eixos X, Y e Z.")
-
-    # Lê as medições, que começam depois das cinco linhas iniciais.
-    dados = pd.read_csv(
-        caminho,
-        sep=";",
-        decimal=",",
-        skiprows=5,
-        header=None,
-        encoding="utf-8-sig",
-        dtype=float,
+def ler_lynx_acelerometria(caminho, ignorar_ultima_incompleta=False):
+    tempo, canais, info = ler_canais_lynx(
+        caminho, ("g",), "acelerometria", ignorar_ultima_incompleta
     )
-
-    if dados.empty or dados.shape[1] != 13:
-        raise ValueError("Esperadas uma coluna de tempo e 12 de medição.")
-
-    if not np.isfinite(dados.to_numpy()).all():
-        raise ValueError("Há valores vazios ou inválidos no arquivo.")
-
-    dados.columns = ["Tempo"] + nomes
-
-    tempo = dados["Tempo"].to_numpy()
-
-    if np.any(np.diff(tempo) <= 0):
-        raise ValueError("O tempo deve ser crescente, sem repetições.")
-
-    canais = dados.drop(columns="Tempo")
-
-    return tempo, canais, sensores
+    posicoes = list(canais.columns)
+    if len(posicoes) % 3:
+        raise ValueError(
+            f"Foram encontrados {len(posicoes)} canais em g. A acelerometria requer "
+            "trios completos na ordem X, Y, Z. Confira as unidades e a ordem no CSV."
+        )
+    sensores = [dict(zip("XYZ", posicoes[i:i + 3])) for i in range(0, len(posicoes), 3)]
+    return tempo, canais, sensores, info

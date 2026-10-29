@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import (
     QGridLayout, QMainWindow, QWidget, QFrame, QHBoxLayout, QVBoxLayout,
-    QLabel, QCheckBox, QPushButton, QDoubleSpinBox, QMenu, QSpinBox, QMessageBox, QFileDialog
+    QLabel, QCheckBox, QPushButton, QDoubleSpinBox, QMenu, QSpinBox, QMessageBox, QFileDialog, QScrollArea
 )
 from pathlib import Path
 from datetime import datetime
@@ -61,7 +61,11 @@ class Tela(QMainWindow):
             layout_canais.addWidget(checkbox)
 
         layout_canais.addStretch()
-        layout_principal.addWidget(painel_canais)
+        rolagem_canais = QScrollArea()
+        rolagem_canais.setWidgetResizable(True)
+        rolagem_canais.setWidget(painel_canais)
+        rolagem_canais.setMinimumWidth(240)
+        layout_principal.addWidget(rolagem_canais)
 
         painel_direito = QWidget()
         layout_direito = QVBoxLayout(painel_direito)
@@ -333,6 +337,10 @@ class Tela(QMainWindow):
                     )
 
                     eixo.grid(True, alpha=0.25)
+
+                    faixa_x, faixa_y = plot.viewRange()
+                    eixo.set_xlim([10 ** v for v in faixa_x] if eixo_x.logMode else faixa_x)
+                    eixo.set_ylim([10 ** v for v in faixa_y] if eixo_y.logMode else faixa_y)
 
                     if eixo.lines:
                         eixo.legend(
