@@ -1,5 +1,6 @@
 """Regressões de importação e interface com CSVs sintéticos, sem monitor."""
 import csv
+import codecs
 from datetime import datetime
 import os
 from pathlib import Path
@@ -16,11 +17,12 @@ from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 import shiboken6
 
 from leitor_lynx import LinhaFinalIncompleta
+from codificacao_csv import detectar_codificacao_csv
 from leitor_lynx_acm import ler_lynx_acelerometria
 from leitor_lynx_ext import ler_lynx_extensometria
 from tela_lynx_acm import TelaLynxAcelerometria
 from tela_lynx_ext import TelaLynxExtensometria
-from exportacao_html import criar_figura_html
+from exportacao_html import criar_figura_html, ler_inicio_lynx
 
 
 class ArquivoMixin:
@@ -29,7 +31,7 @@ class ArquivoMixin:
         self.addCleanup(self.tmp.cleanup)
         self.sequencia = 0
 
-    def arquivo(self, unidades, nomes=None, decimal=',', alterar=None):
+    def arquivo(self, unidades, nomes=None, decimal=',', alterar=None, encoding='utf-8-sig'):
         self.sequencia += 1
         nomes = nomes or [f'Sensor livre {n}' for n in range(1, len(unidades) + 1)]
         linhas = [
@@ -45,12 +47,48 @@ class ArquivoMixin:
         if alterar:
             alterar(linhas)
         caminho = Path(self.tmp.name) / f'dados_{self.sequencia}.csv'
-        with caminho.open('w', encoding='utf-8-sig', newline='') as arquivo:
+        with caminho.open('w', encoding=encoding, newline='') as arquivo:
             csv.writer(arquivo, delimiter=';').writerows(linhas)
         return caminho
 
 
 class LeituraTests(ArquivoMixin, unittest.TestCase):
+    def test_codificacoes_preservam_nomes_unidades_e_arquivo(self):
+        for encoding in ('cp1252', 'utf-8', 'utf-8-sig', 'utf-16'):
+            with self.subTest(encoding=encoding):
+                caminho = self.arquivo(['MPa', 'µm/m', 'g', 'g', 'g'],
+                                       nomes=['Tensão', 'Deformação — µ', 'Aceleração X', 'Aceleração Y', 'Aceleração Z'],
+                                       encoding=encoding)
+                original = caminho.read_bytes()
+                if encoding == 'cp1252':
+                    self.assertIn(b'\xb5', original)
+                    with self.assertRaises(UnicodeDecodeError):
+                        original.decode('utf-8')
+                _, dados, mapa, info = ler_lynx_extensometria(caminho)
+                self.assertEqual(list(dados), [1, 2])
+                self.assertEqual(mapa[1], 'Tensão')
+                self.assertEqual(mapa[2], 'Deformação — µ')
+                self.assertEqual(info['unidades'][2], 'μm/m')
+                _, acm, sensores, _ = ler_lynx_acelerometria(caminho)
+                self.assertEqual(list(acm), [3, 4, 5])
+                self.assertEqual(sensores, [{'X': 3, 'Y': 4, 'Z': 5}])
+                self.assertEqual(ler_inicio_lynx(caminho), datetime(2026, 10, 28, 12))
+                self.assertEqual(caminho.read_bytes(), original)
+
+    def test_utf16_big_endian_com_bom(self):
+        caminho = self.arquivo(['μm/m'], nomes=['Deformação'], encoding='utf-8')
+        caminho.write_bytes(codecs.BOM_UTF16_BE + caminho.read_text(encoding='utf-8').encode('utf-16-be'))
+        _, _, mapa, info = ler_lynx_extensometria(caminho)
+        self.assertEqual(mapa[1], 'Deformação')
+        self.assertEqual(info['unidade'], 'μm/m')
+
+    def test_codificacao_e_validada_alem_do_primeiro_bloco(self):
+        caminho = Path(self.tmp.name) / 'blocos.csv'
+        caminho.write_bytes(b'a' * 65535 + 'µ'.encode('utf-8'))
+        self.assertEqual(detectar_codificacao_csv(caminho), 'utf-8')
+        caminho.write_bytes(b'a' * 65536 + b'\xb5')
+        self.assertEqual(detectar_codificacao_csv(caminho), 'cp1252')
+
     def test_exemplo_da_imagem_e_posicoes_originais(self):
         caminho = self.arquivo(['g'] * 6 + ['μm/m'] * 7 + ['mm'])
         original = caminho.read_bytes()
@@ -210,6 +248,21 @@ class InterfaceTests(ArquivoMixin, unittest.TestCase):
         self.assertEqual(len(acm.curvas_lynx), 6)
         self.assertEqual(len(acm.checkboxes_canais), 2)
         self.assertIn('Canal 7', self.aviso.call_args.args[2])
+
+    def test_csv_ansi_importa_nas_duas_telas_e_exporta_html(self):
+        caminho = self.arquivo(['g'] * 3 + ['µm/m'],
+                               nomes=['Aceleração X', 'Aceleração Y', 'Aceleração Z', 'Deformação'],
+                               encoding='cp1252')
+        ext = self.janela(TelaLynxExtensometria)
+        self.assertTrue(ext.importar_caminho(caminho))
+        self.assertEqual(self.visiveis(ext), [4])
+        self.assertEqual(ext.unidade_visual, 'μm/m')
+        fig = criar_figura_html([ext.grafico.getPlotItem()], inicio=ler_inicio_lynx(caminho))
+        self.assertIn('Deformação', fig.data[0].name)
+        self.assertEqual(fig.layout.xaxis.type, 'date')
+        acm = self.janela(TelaLynxAcelerometria)
+        self.assertTrue(acm.importar_caminho(caminho))
+        self.assertEqual(len(acm.curvas_lynx), 3)
 
     def test_modos_separam_grandezas_e_preservam_dados(self):
         ext = self.janela(TelaLynxExtensometria)

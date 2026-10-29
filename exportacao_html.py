@@ -6,6 +6,7 @@ import numpy as np
 import plotly.graph_objects as go
 import pyqtgraph as pg
 from plotly.subplots import make_subplots
+from codificacao_csv import detectar_codificacao_csv
 
 
 def ler_inicio_lynx(caminho):
@@ -16,8 +17,7 @@ def ler_inicio_lynx(caminho):
     try:
         with open(
             caminho,
-            encoding="utf-8-sig",
-            errors="replace",
+            encoding=detectar_codificacao_csv(caminho),
         ) as arquivo:
             leitor = csv.reader(arquivo, delimiter=";")
 
@@ -37,7 +37,7 @@ def ler_inicio_lynx(caminho):
                             except ValueError:
                                 continue
 
-    except OSError:
+    except (OSError, UnicodeError):
         pass
 
     return None

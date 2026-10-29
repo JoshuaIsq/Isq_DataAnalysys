@@ -1,7 +1,11 @@
 # Importação de CSV Lynx
 
-O arquivo usa `;` como separador, UTF-8 (com ou sem BOM) e ponto ou vírgula
-como separador decimal. As cinco linhas iniciais são `Name`, `Unit`, `HighLim`,
+O arquivo usa `;` como separador e ponto ou vírgula como separador decimal.
+São aceitos UTF-8 (com ou sem BOM), UTF-16 com BOM e ANSI/Windows-1252,
+comum nas exportações Windows que usam `µm/m`. A leitura reconhece o BOM;
+na ausência dele, valida UTF-8 e usa Windows-1252 quando necessário, preservando
+nomes acentuados e o símbolo `µ`. O CSV original não é convertido nem regravado.
+As cinco linhas iniciais são `Name`, `Unit`, `HighLim`,
 `LowLim` e `Time (s)`. As medições começam na sexta linha.
 
 A coluna A contém o tempo em segundos. A coluna B corresponde ao canal 1,

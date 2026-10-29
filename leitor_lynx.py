@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 
 from processamento import Processamento
+from codificacao_csv import detectar_codificacao_csv
 
 
 class LinhaFinalIncompleta(ValueError):
@@ -38,7 +39,8 @@ def aviso_unidades(info, modalidade):
 
 
 def ler_canais_lynx(caminho, unidades_aceitas, modalidade, ignorar_ultima_incompleta=False):
-    with open(caminho, encoding="utf-8-sig", newline="") as arquivo:
+    codificacao = detectar_codificacao_csv(caminho)
+    with open(caminho, encoding=codificacao, newline="") as arquivo:
         leitor = csv.reader(arquivo, delimiter=";")
         cabecalho = [next(leitor, []) for _ in range(5)]
     for linha, etiqueta in zip(cabecalho, ("Name", "Unit", "HighLim", "LowLim", "Time (s)")):
@@ -72,7 +74,7 @@ def ler_canais_lynx(caminho, unidades_aceitas, modalidade, ignorar_ultima_incomp
 
     # Valores inválidos em outra medição não impedem a importação selecionada.
     tabela = pd.read_csv(caminho, sep=";", skiprows=5, header=None,
-                         encoding="utf-8-sig", dtype=str, keep_default_na=False,
+                         encoding=codificacao, dtype=str, keep_default_na=False,
                          skip_blank_lines=False)
     while tabela.shape[1] > len(nomes) + 1 and tabela.iloc[:, -1].str.strip().eq("").all():
         tabela = tabela.iloc[:, :-1]
