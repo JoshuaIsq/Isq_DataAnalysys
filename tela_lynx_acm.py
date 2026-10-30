@@ -7,6 +7,8 @@ from tela import Tela
 from leitor_lynx_acm import ler_lynx_acelerometria
 from leitor_lynx import LinhaFinalIncompleta, aviso_unidades
 from processamento import Processamento
+from integracao import integrar_relativo
+from tela_integracao import TelaIntegracao
 
 
 class TelaLynxAcelerometria(Tela):
@@ -29,6 +31,12 @@ class TelaLynxAcelerometria(Tela):
         self.abrir.clicked.connect(self.carregar_arquivo_lynx)
         self.abrir_arquivo.triggered.connect(self.carregar_arquivo_lynx)
         self.criar_controles_rms()
+        self.janelas_resultados = []
+        self.botao_velocidade = QPushButton("Gerar velocidade")
+        self.botao_velocidade.setEnabled(False)
+        self.botao_velocidade.setToolTip("Integra o sinal temporal tratado, mesmo quando FFT ou RMS está visível.")
+        self.layout_controles.addWidget(self.botao_velocidade, 5, 0)
+        self.botao_velocidade.clicked.connect(self.gerar_velocidade)
 
     def criar_controles_rms(self):
         linha = QHBoxLayout()
@@ -106,6 +114,7 @@ class TelaLynxAcelerometria(Tela):
         self.botao_fft.blockSignals(True)
         self.botao_fft.setChecked(False)
         self.botao_fft.blockSignals(False)
+        self.botao_velocidade.setEnabled(True)
         self.botao_fft.setEnabled(True)
         self.botao_rms.setEnabled(True)
         self.campo_janela_rms.setEnabled(True)
@@ -346,3 +355,26 @@ class TelaLynxAcelerometria(Tela):
             f"{len(self.tempo)} amostras | {modo} | "
             f"{substituidas} substituições de outliers"
         )
+
+
+    def gerar_velocidade(self):
+        if self.df_sensores is None:
+            return
+        canais = {}
+        for numero, sensor in enumerate(self.sensores_lynx, 1):
+            for eixo, canal in sensor.items():
+                if (self.checkboxes_canais[numero].isChecked()
+                        and self.checkboxes_eixos[(numero, eixo)].isChecked()):
+                    canais[canal] = (eixo, f"Canal {canal} — {self.info_arquivo['nomes'][canal]}")
+        if not canais:
+            QMessageBox.information(self, "Integração", "Selecione pelo menos um canal.")
+            return
+        try:
+            dados = integrar_relativo(self.tempo, self.df_sensores[list(canais)], 'aceleracao')
+        except ValueError as erro:
+            QMessageBox.warning(self, "Falha ao integrar", str(erro))
+            return
+        janela = TelaIntegracao(self.tempo, dados, canais, 'velocidade', self.caminho_atual)
+        self.janelas_resultados.append(janela)
+        janela.show()
+        return janela
