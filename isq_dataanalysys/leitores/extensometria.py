@@ -1,5 +1,5 @@
 """Extensometria: tensão em MPa e deformação em μm/m ou mm/m."""
-from leitor_lynx import LinhaFinalIncompleta, ler_canais_lynx
+from isq_dataanalysys.leitores.lynx import ler_canais_lynx
 
 
 def ler_lynx_extensometria(caminho, ignorar_ultima_incompleta=False):

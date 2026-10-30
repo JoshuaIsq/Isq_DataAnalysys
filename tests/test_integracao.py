@@ -12,11 +12,11 @@ import shiboken6
 from PySide6.QtCore import QCoreApplication, QEvent, QPoint, Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
-from integracao import integrar_relativo
-from tela_lynx_acm import TelaLynxAcelerometria
-from exportacao_html import criar_figura_html
-from versao import VERSAO
-from test_lynx import ArquivoMixin
+from isq_dataanalysys.processamento.integracao import integrar_relativo
+from isq_dataanalysys.interface.acelerometria import TelaLynxAcelerometria
+from isq_dataanalysys.exportacao.html import criar_figura_html
+from isq_dataanalysys import __version__ as VERSAO
+from tests.apoio import ArquivoMixin
 
 
 class CalculoTests(unittest.TestCase):
@@ -70,7 +70,7 @@ class CalculoTests(unittest.TestCase):
         dados = pd.DataFrame({1: [1., 2., 4., 8.]})
         with self.assertRaises(ValueError):
             integrar_relativo([0, 1, 2, 3], dados, 'fft')
-        with patch('integracao.np.linalg.lstsq', side_effect=np.linalg.LinAlgError):
+        with patch('isq_dataanalysys.processamento.integracao.np.linalg.lstsq', side_effect=np.linalg.LinAlgError):
             with self.assertRaisesRegex(ValueError, 'Não foi possível integrar'):
                 integrar_relativo([0, 1, 2, 3], dados, 'aceleracao')
         with self.assertRaisesRegex(ValueError, 'Não foi possível integrar'):
@@ -200,7 +200,7 @@ class FluxoTests(ArquivoMixin, unittest.TestCase):
         self.assertLessEqual(acm.width(), 1330)
         self.assertLessEqual(acm.height(), 625)
         self.assertIn(VERSAO, acm.windowTitle())
-        self.assertIn('tela_lynx_acm.py', acm.rotulo_versao.toolTip())
+        self.assertIn(str(Path('interface') / 'acelerometria.py'), acm.rotulo_versao.toolTip())
         self.verificar_botao_visivel(acm, acm.botao_velocidade)
         QTest.mouseClick(acm.botao_velocidade, Qt.MouseButton.LeftButton)
         self.assertEqual(len(acm.janelas_resultados), 1)
@@ -252,14 +252,14 @@ class FluxoTests(ArquivoMixin, unittest.TestCase):
     def test_falha_de_calculo_nao_altera_origem_ou_abre_janela(self):
         acm = self.janela_aceleracao(3)
         original = acm.df_sensores.copy()
-        with patch('tela_lynx_acm.integrar_relativo', side_effect=ValueError('Sinal inválido')):
+        with patch('isq_dataanalysys.interface.acelerometria.integrar_relativo', side_effect=ValueError('Sinal inválido')):
             acm.botao_velocidade.click()
         self.assertEqual(acm.janelas_resultados, [])
         pd.testing.assert_frame_equal(acm.df_sensores, original)
         vel = acm.gerar_velocidade()
         self.janelas.append(vel)
         copia_vel = vel.df_sensores.copy()
-        with patch('tela_integracao.integrar_relativo', side_effect=ValueError('Sinal inválido')):
+        with patch('isq_dataanalysys.interface.integracao.integrar_relativo', side_effect=ValueError('Sinal inválido')):
             vel.botao_deslocamento.click()
         self.assertEqual(vel.janelas_resultados, [])
         pd.testing.assert_frame_equal(vel.df_sensores, copia_vel)

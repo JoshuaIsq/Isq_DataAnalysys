@@ -1,78 +1,109 @@
 # ISQ DataAnalysys
 
-Análise de CSVs Lynx de extensometria e acelerometria com interface PySide6.
+Análise de CSVs Lynx de acelerometria e extensometria. A aplicação mantém as
+correções de CSV/codificação, filtros, FFT/RMS, integrações temporais e exportações
+SVG/HTML.
 
-## Revisão 2026.10.30.2
+## Abrir a aplicação
 
-Na **Acelerometria**, a faixa azul abaixo de FFT/RMS contém **Gerar velocidade**.
-Ela fica visível desde a abertura da janela e habilita após importar um CSV válido.
-A janela de velocidade tem **Gerar deslocamento**. Os três gráficos permanecem
-em janelas independentes, com seleção de canais e exportação SVG/HTML.
-
-O título e o rodapé da acelerometria mostram **v2026.10.30.2**. Passe o mouse
-sobre a versão no rodapé para conferir o caminho do código em execução.
-
-## Abrir uma cópia limpa no Windows
-
-1. Feche as instâncias anteriores da aplicação.
-2. Baixe o [ZIP da main](https://github.com/JoshuaIsq/Isq_DataAnalysys/archive/refs/heads/main.zip)
-   e extraia em uma **nova pasta**, preservando sua pasta anterior.
-3. Abra no VS Code a pasta que contém `main.py`, `tela_lynx_acm.py`,
-   `tela_integracao.py`, `integracao.py` e `versao.py`.
-4. Use o interpretador Python com as dependências da aplicação e execute:
+Na raiz deste repositório, com o interpretador que contém as dependências:
 
 ```powershell
 python .\main.py
 ```
 
-Confira **v2026.10.30.2** no título. Na tela inicial, escolha
-**Lynx → Acelerometria**, abra o CSV e clique em **Gerar velocidade**.
-Atualizar os fontes não atualiza um executável `.exe` construído anteriormente;
-para conferir esta revisão, execute o `main.py` da pasta recém-extraída.
+Escolha **Lynx → Acelerometria** ou **Lynx → Extensometria**. Acelerometria mantém
+**Gerar velocidade** na faixa azul e **Gerar deslocamento** na janela de velocidade.
 
-As dependências são NumPy, pandas, SciPy, PySide6, pyqtgraph, Matplotlib e Plotly.
-Não é necessário copiar configurações do ambiente cloud.
-
-## Atualizar a cópia Git existente
-
-Se houver alterações locais, guarde um backup antes da atualização:
+Para identificar a instalação aberta:
 
 ```powershell
-git stash push -m "Backup local antes da v2026.10.30.2"
-git fetch origin
-git switch main
-git merge --ff-only origin/main
-python .\main.py
+python .\main.py --diagnostico
 ```
 
-Confira os resultados de cada comando. Se a atualização for interrompida, a cópia
-local ainda não está atualizada. O backup fica em `git stash list`; revise com
-`git stash show -p` antes de reaplicar alterações, pois ele pode conter uma
-versão antiga de `tela_lynx_acm.py`.
+A tela inicial também oferece **Sobre esta instalação**. A versão e o caminho
+exibidos vêm do mesmo pacote usado pelas telas e pelos cálculos.
 
-Para identificar a versão e o arquivo que seu Python está importando:
+## Organização
+
+```text
+main.py                    # inicia a aplicação
+pyproject.toml             # dependências, instalação e empacotamento
+isq_dataanalysys/
+  __init__.py              # única definição da versão
+  aplicacao.py             # inicialização e diagnóstico
+  interface/               # telas, controles e seleção de canais
+  processamento/           # filtros, FFT/RMS e integrações
+  leitores/                # CSV, codificação e metadados Lynx
+  exportacao/              # renderização HTML e SVG
+  recursos/                # logo e outros recursos da aplicação
+tests/                     # testes e dados sintéticos
+docs/                      # funcionamento e manutenção
+tools/                     # manutenção do checkout
+dados/                     # CSVs locais, ignorados pelo Git
+exportacoes/               # SVGs/HTMLs locais, ignorados pelo Git
+```
+
+Os nomes antigos, como `tela_lynx_acm.py`, foram movidos para o pacote. Não é
+necessário manter outra cópia desses módulos na raiz. Os imports usam o nome
+completo do pacote, evitando carregar arquivos antigos com nomes semelhantes.
+
+`__pycache__` é um cache gerado pelo Python, ignorado pelo Git. Ele pode reaparecer
+após executar o programa e não representa outra versão dos fontes.
+
+## Atualização e consolidação das cópias
+
+Mantenha **um checkout principal** e use o histórico do Git para versões anteriores.
+Na pasta principal:
 
 ```powershell
-python -c "from versao import VERSAO; import tela_lynx_acm; print(VERSAO); print(tela_lynx_acm.__file__)"
+git pull --ff-only origin main
+python .\main.py --diagnostico
 ```
 
-## Cálculos e testes
+Se o Git informar alterações locais, revise e guarde essas alterações antes de
+atualizar. Consulte o [guia de migração](docs/MIGRACAO.md), com instruções para a
+pasta `Isq_DataAnalysys-git` e a cópia `ISQ-atualizado-...` criada no diagnóstico.
 
-Aceleração temporal em **g** → remover ajuste linear → integrar para **mm/s**.
-Velocidade → remover ajuste quadrático → integrar para **mm**. Ambas usam
-trapézios cumulativos e condição inicial zero. As integrações usam os dados
-temporais tratados completos dos canais selecionados, inclusive quando a
-visualização mostra FFT ou RMS, preservando os dados e as janelas da origem.
+Para listar cópias aninhadas sem modificar arquivos:
 
-Consulte [o fluxo e as unidades](docs/INTEGRACAO_ACELEROMETRIA.md) e
-[a importação CSV](docs/CSV_LYNX.md).
+```powershell
+python .\tools\consolidar_copias.py
+```
+
+Para movê-las completas para `ISQ-copias-arquivadas`, ao lado do projeto:
+
+```powershell
+python .\tools\consolidar_copias.py --arquivar
+```
+
+Esse comando reconhece clones `ISQ-atualizado-*` deste repositório e preserva todo
+o conteúdo, incluindo `.git`, alterações locais, dados e arquivos ignorados.
+
+## Instalação e desenvolvimento
+
+As dependências estão declaradas em `pyproject.toml`. Em um interpretador preparado
+para o projeto, a instalação para desenvolvimento é:
+
+```powershell
+python -m pip install -e .
+```
+
+O `main.py` também funciona sem instalar o projeto, quando as dependências já estão
+disponíveis. Após instalar o pacote, o comando `isq-analise` inicia a mesma aplicação.
+A configuração do ambiente cloud não faz parte do projeto.
+
+## Testes e documentação
 
 ```powershell
 python -m unittest discover -s tests -v
 ```
 
-Os testes de interface usam Qt sem monitor. O teste de arranque abre o `main.py`
-real em processos separados e percorre as três janelas nas escalas 100%, 125%
-e 150%. A suíte também cobre cálculos com soluções conhecidas, unidades,
-condições iniciais, seleção de canais, independência das janelas, arquivos SVG/HTML
-e as regressões de CSV e codificação.
+Os testes usam CSVs sintéticos e Qt sem monitor. Cobrem importação e codificação,
+cálculos e unidades, filtros/FFT/RMS, seleção de canais, janelas, exportações, início
+pelo `main.py`, isolamento de módulos antigos e preservação de dados na consolidação.
+
+- [Responsabilidade de cada pasta e mapa dos arquivos movidos](docs/ESTRUTURA.md)
+- [Migração da pasta atual e arquivamento das cópias](docs/MIGRACAO.md)
+- [Importação de CSV Lynx](docs/CSV_LYNX.md)
+- [Velocidade e deslocamento relativos](docs/INTEGRACAO_ACELEROMETRIA.md)

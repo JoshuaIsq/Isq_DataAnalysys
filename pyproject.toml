@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "isq-dataanalysys"
+dynamic = ["version"]
+description = "Análise de medições Lynx de acelerometria e extensometria"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24",
+    "pandas>=2.0",
+    "scipy>=1.10",
+    "PySide6>=6.6",
+    "pyqtgraph>=0.13.3",
+    "matplotlib>=3.7",
+    "plotly>=5.18",
+]
+
+[project.scripts]
+isq-analise = "isq_dataanalysys.aplicacao:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "isq_dataanalysys.__version__"}
+
+[tool.setuptools.packages.find]
+include = ["isq_dataanalysys*"]
+
+[tool.setuptools.package-data]
+isq_dataanalysys = ["recursos/*.png"]

@@ -2,7 +2,7 @@
 import numpy as np
 import pandas as pd
 from scipy.integrate import cumulative_trapezoid
-from processamento import Processamento
+from isq_dataanalysys.processamento.sinais import Processamento
 
 G_PADRAO_MM_S2 = 9806.65
 

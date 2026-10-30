@@ -4,8 +4,8 @@ import csv
 import numpy as np
 import pandas as pd
 
-from processamento import Processamento
-from codificacao_csv import detectar_codificacao_csv
+from isq_dataanalysys.processamento.sinais import Processamento
+from isq_dataanalysys.leitores.codificacao import detectar_codificacao_csv
 
 
 class LinhaFinalIncompleta(ValueError):

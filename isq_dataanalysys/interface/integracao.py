@@ -7,9 +7,9 @@ from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QCheckBox,
     QPushButton, QLabel, QMenu, QMessageBox, QScrollArea, QFrame,
 )
-from tela import Tela
-from integracao import integrar_relativo
-from versao import VERSAO
+from .exportacao import ExportacaoGraficos
+from isq_dataanalysys.processamento.integracao import integrar_relativo
+from isq_dataanalysys import __version__ as VERSAO
 
 
 # Janelas sem pai Qt continuam abertas mesmo após fechar a origem.
@@ -33,11 +33,7 @@ def mostrar_resultado(origem, janela):
     return janela
 
 
-class TelaIntegracao(QMainWindow):
-    # Os exportadores usam os dados completos das curvas visíveis.
-    exportar_svg = Tela.exportar_svg
-    exportar_html = Tela.exportar_html
-
+class TelaIntegracao(ExportacaoGraficos, QMainWindow):
     def __init__(self, tempo, dados, canais, grandeza, caminho=None, inicio_arquivo=None):
         super().__init__()
         if grandeza not in ('velocidade', 'deslocamento'):

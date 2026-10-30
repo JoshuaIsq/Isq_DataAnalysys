@@ -3,14 +3,14 @@ import numpy as np
 import pyqtgraph as pg
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QCheckBox, QFrame, QSizePolicy,
                                QPushButton, QDoubleSpinBox, QLabel, QFileDialog, QMessageBox,)
-from tela import Tela
-from leitor_lynx_acm import ler_lynx_acelerometria
-from leitor_lynx import LinhaFinalIncompleta, aviso_unidades
-from processamento import Processamento
-from integracao import integrar_relativo
-from tela_integracao import TelaIntegracao, mostrar_resultado
-from versao import VERSAO
-from exportacao_html import ler_inicio_lynx
+from isq_dataanalysys.interface.base import Tela
+from isq_dataanalysys.leitores.acelerometria import ler_lynx_acelerometria
+from isq_dataanalysys.leitores.lynx import LinhaFinalIncompleta, aviso_unidades
+from isq_dataanalysys.processamento.sinais import Processamento
+from isq_dataanalysys.processamento.integracao import integrar_relativo
+from isq_dataanalysys.interface.integracao import TelaIntegracao, mostrar_resultado
+from isq_dataanalysys import __version__ as VERSAO
+from isq_dataanalysys.leitores.metadados import ler_inicio_lynx
 
 
 class TelaLynxAcelerometria(Tela):
@@ -35,7 +35,6 @@ class TelaLynxAcelerometria(Tela):
         self.info_rms = None
         self.info_fft = None
         self.abrir.clicked.connect(self.carregar_arquivo_lynx)
-        self.abrir_arquivo.triggered.connect(self.carregar_arquivo_lynx)
         self.criar_controles_rms()
         self.janelas_resultados = []
         self.criar_controles_integracao()

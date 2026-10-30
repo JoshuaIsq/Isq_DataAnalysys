@@ -1,5 +1,5 @@
 """Acelerometria: trios X/Y/Z na ordem dos canais de aceleração do CSV."""
-from leitor_lynx import ler_canais_lynx
+from isq_dataanalysys.leitores.lynx import ler_canais_lynx
 
 
 def ler_lynx_acelerometria(caminho, ignorar_ultima_incompleta=False):

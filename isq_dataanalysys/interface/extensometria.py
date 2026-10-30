@@ -1,4 +1,5 @@
 from pathlib import Path
+from isq_dataanalysys import __version__
 
 import numpy as np
 import pyqtgraph as pg
@@ -7,9 +8,9 @@ from PySide6.QtWidgets import (
     QHBoxLayout, QLabel, QMessageBox, QPushButton,
 )
 
-from tela import Tela
-from leitor_lynx import aviso_unidades
-from leitor_lynx_ext import ler_lynx_extensometria, LinhaFinalIncompleta
+from isq_dataanalysys.interface.base import Tela
+from isq_dataanalysys.leitores.lynx import aviso_unidades, LinhaFinalIncompleta
+from isq_dataanalysys.leitores.extensometria import ler_lynx_extensometria
 
 
 class TelaLynxExtensometria(Tela):
@@ -22,7 +23,7 @@ class TelaLynxExtensometria(Tela):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Análise de dados - Lynx Extensometria")
+        self.setWindowTitle(f"Análise de dados - Lynx Extensometria — v{__version__}")
         self.tempo = None
         self.df_original = None
         self.df_sensores = None
@@ -38,7 +39,6 @@ class TelaLynxExtensometria(Tela):
         self.rotulo_arquivo.setWordWrap(True)
         self.layout_controles.addWidget(self.rotulo_arquivo, 7, 0, 1, 4)
         self.abrir.clicked.connect(self.carregar_arquivo_lynx)
-        self.abrir_arquivo.triggered.connect(self.carregar_arquivo_lynx)
 
     def criar_graficos(self, layout_direito):
         self.grafico = pg.PlotWidget(background="w")

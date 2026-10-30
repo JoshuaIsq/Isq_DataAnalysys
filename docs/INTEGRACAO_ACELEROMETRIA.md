@@ -42,7 +42,7 @@ canais e gravação real de SVG/HTML, além das regressões de CSV e codificaç�
 
 ## Identificar a revisão e o código aberto
 
-A revisão **2026.10.30.2** mostra a versão no título e no rodapé da acelerometria,
+A revisão **2026.10.30.3** mostra a versão no título e no rodapé da acelerometria,
 com **Gerar velocidade** destacado em azul abaixo de FFT/RMS. O botão aparece
 mesmo antes de abrir o CSV e habilita após uma importação válida.
 
@@ -60,4 +60,4 @@ mantém o deslocamento aberto; os dados de uma janela fechada são liberados ap�
 seu fechamento. Fechar resultados não altera os dados da origem.
 
 Se o título não mostrar a revisão, consulte as instruções de atualização e de
-abertura de uma cópia limpa no [README](../README.md).
+consolidação do projeto no [guia de migração](MIGRACAO.md).
