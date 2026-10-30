@@ -1,20 +1,25 @@
 from pathlib import Path
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QCheckBox, 
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QCheckBox, QFrame, QSizePolicy,
                                QPushButton, QDoubleSpinBox, QLabel, QFileDialog, QMessageBox,)
 from tela import Tela
 from leitor_lynx_acm import ler_lynx_acelerometria
 from leitor_lynx import LinhaFinalIncompleta, aviso_unidades
 from processamento import Processamento
 from integracao import integrar_relativo
-from tela_integracao import TelaIntegracao
+from tela_integracao import TelaIntegracao, mostrar_resultado
+from versao import VERSAO
+from exportacao_html import ler_inicio_lynx
 
 
 class TelaLynxAcelerometria(Tela):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Análise de dados - Lynx Acelerometria")
+        self.setWindowTitle(f"Análise de dados - Lynx Acelerometria — v{VERSAO}")
+        self.rotulo_versao = QLabel(f"v{VERSAO}")
+        self.rotulo_versao.setToolTip(f"Código em execução: {Path(__file__).resolve()}")
+        self.statusBar().addPermanentWidget(self.rotulo_versao)
         self.checkboxes_eixos = {}
         self.curvas_lynx = {}
         self.grupos_eixos = []
@@ -24,6 +29,7 @@ class TelaLynxAcelerometria(Tela):
         self.df_sensores = None
         self.sensores_lynx = []
         self.caminho_atual = None
+        self.inicio_arquivo = None
         self.info_processamento = {}
         self.info_arquivo = {}
         self.info_rms = None
@@ -32,10 +38,39 @@ class TelaLynxAcelerometria(Tela):
         self.abrir_arquivo.triggered.connect(self.carregar_arquivo_lynx)
         self.criar_controles_rms()
         self.janelas_resultados = []
+        self.criar_controles_integracao()
+
+    def criar_controles_integracao(self):
+        painel = QFrame()
+        painel.setObjectName("painel_integracao")
+        painel.setStyleSheet(
+            "QFrame#painel_integracao {background: #eef5ff; border-radius: 4px;}"
+            "QLabel {color: #26364a;}"
+        )
+        linha = QHBoxLayout(painel)
+        linha.setContentsMargins(8, 6, 8, 6)
         self.botao_velocidade = QPushButton("Gerar velocidade")
+        self.botao_velocidade.setObjectName("gerar_velocidade")
+        self.botao_velocidade.setMinimumHeight(34)
         self.botao_velocidade.setEnabled(False)
-        self.botao_velocidade.setToolTip("Integra o sinal temporal tratado, mesmo quando FFT ou RMS está visível.")
-        self.layout_controles.addWidget(self.botao_velocidade, 5, 0)
+        self.botao_velocidade.setStyleSheet(
+            "QPushButton {background: #1565c0; color: white; padding: 6px 18px; border-radius: 4px;}"
+            "QPushButton:hover {background: #0d47a1;}"
+            "QPushButton:disabled {background: #d4dce5; color: #536170;}"
+        )
+        self.botao_velocidade.setToolTip(
+            "Abre outra janela em mm/s. Remove uma reta da aceleração tratada e integra "
+            "todo o intervalo temporal, mesmo quando FFT ou RMS está visível."
+        )
+        linha.addWidget(self.botao_velocidade)
+        descricao = QLabel(
+            "Integração temporal → mm/s · ajuste linear · velocidade inicial zero\n"
+            "Abre uma nova janela; resultado relativo ao início do intervalo."
+        )
+        descricao.setWordWrap(True)
+        descricao.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        linha.addWidget(descricao, 1)
+        self.layout_controles.addWidget(painel, 5, 0, 1, 4)
         self.botao_velocidade.clicked.connect(self.gerar_velocidade)
 
     def criar_controles_rms(self):
@@ -106,6 +141,7 @@ class TelaLynxAcelerometria(Tela):
         self.sensores_lynx = sensores
         self.info_arquivo = info
         self.caminho_atual = Path(caminho)
+        self.inicio_arquivo = ler_inicio_lynx(caminho)
         self.config_filtros = {}
         self.info_processamento = {"fs": fs, "substituicoes": {}}
         self.botao_rms.blockSignals(True)
@@ -374,7 +410,8 @@ class TelaLynxAcelerometria(Tela):
         except ValueError as erro:
             QMessageBox.warning(self, "Falha ao integrar", str(erro))
             return
-        janela = TelaIntegracao(self.tempo, dados, canais, 'velocidade', self.caminho_atual)
-        self.janelas_resultados.append(janela)
-        janela.show()
-        return janela
+        janela = TelaIntegracao(
+            self.tempo, dados, canais, 'velocidade', self.caminho_atual,
+            inicio_arquivo=self.inicio_arquivo,
+        )
+        return mostrar_resultado(self, janela)

@@ -281,6 +281,10 @@ class Tela(QMainWindow):
             with mpl.rc_context({"path.simplify": False, "svg.fonttype": "path"}):
                 figura = Figure(figsize=(12, 4 * len(plots)), layout="constrained")
 
+                descricao = getattr(self, "descricao_exportacao", "")
+                if descricao:
+                    figura.suptitle(descricao, fontsize=10)
+
                 FigureCanvasSVG(figura)
 
                 eixos = figura.subplots(nrows=len(plots), ncols=1,
@@ -406,14 +410,16 @@ class Tela(QMainWindow):
         caminho = Path(pasta) / nome
 
         try:
-            inicio = ler_inicio_lynx(
-                getattr(self, "caminho_atual", None)
-            )
+            if hasattr(self, "inicio_exportacao"):
+                inicio = self.inicio_exportacao
+            else:
+                inicio = ler_inicio_lynx(getattr(self, "caminho_atual", None))
 
             figura = criar_figura_html(
                 plots,
                 inicio=inicio,
                 titulo=self.windowTitle(),
+                descricao=getattr(self, "descricao_exportacao", ""),
             )
 
             figura.write_html(

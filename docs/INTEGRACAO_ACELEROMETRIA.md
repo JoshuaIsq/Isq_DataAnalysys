@@ -39,3 +39,25 @@ A suíte cobre soluções polinomiais conhecidas, conversão de unidades, condi�
 iniciais, remoção de tendências, validação de entradas, uso do sinal tratado
 com FFT/RMS ativos, preservação da origem, janelas independentes, seleção de
 canais e gravação real de SVG/HTML, além das regressões de CSV e codificação.
+
+## Identificar a revisão e o código aberto
+
+A revisão **2026.10.30.2** mostra a versão no título e no rodapé da acelerometria,
+com **Gerar velocidade** destacado em azul abaixo de FFT/RMS. O botão aparece
+mesmo antes de abrir o CSV e habilita após uma importação válida.
+
+O botão fica disponível nos modos temporal, FFT e RMS. O sinal temporal continua
+em g; a visualização RMS AC existente continua em mg. FFT e RMS nunca são usados
+como entrada da integração.
+
+A seleção de canais dos resultados fica na lateral. As exportações derivadas
+incluem o método, o intervalo temporal, a condição inicial e a referência ao início
+do intervalo. A data de início do CSV é preservada na importação: mudar ou remover
+o arquivo de origem não altera essa referência nas exportações dos resultados.
+
+Fechar a aceleração mantém velocidade e deslocamento abertos. Fechar a velocidade
+mantém o deslocamento aberto; os dados de uma janela fechada são liberados após
+seu fechamento. Fechar resultados não altera os dados da origem.
+
+Se o título não mostrar a revisão, consulte as instruções de atualização e de
+abertura de uma cópia limpa no [README](../README.md).

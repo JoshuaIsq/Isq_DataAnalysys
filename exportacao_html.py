@@ -43,7 +43,7 @@ def ler_inicio_lynx(caminho):
     return None
 
 
-def criar_figura_html(plots, inicio=None, titulo="Dados tratados"):
+def criar_figura_html(plots, inicio=None, titulo="Dados tratados", descricao=""):
     """Monta o HTML a partir das curvas selecionadas na tela."""
     figura = make_subplots(
         rows=len(plots),
@@ -181,7 +181,10 @@ def criar_figura_html(plots, inicio=None, titulo="Dados tratados"):
         height=450 * len(plots),
         hovermode="closest",
         hoverlabel=dict(namelength=-1),
-        margin=dict(l=80, r=30, t=70, b=60),
+        margin=dict(l=80, r=30, t=120 if descricao else 70, b=60),
     )
+
+    if descricao:
+        figura.update_layout(title=dict(text=escape(descricao).replace('\n', '<br>'), font=dict(size=12)))
 
     return figura

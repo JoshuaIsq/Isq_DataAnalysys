@@ -7,6 +7,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
 from tela_lynx_acm import TelaLynxAcelerometria
 from tela_lynx_ext import TelaLynxExtensometria
+from versao import VERSAO
 
 app = QApplication(sys.argv) 
 
@@ -31,7 +32,7 @@ def abrir_lynx_extensometria():
 
 # Cria uma instância de um widget, que será a janela principal da aplicação
 janela = QWidget()  
-janela.setWindowTitle("ISQ_Analysys")  
+janela.setWindowTitle(f"ISQ_Analysys — v{VERSAO}")
 janela.resize(1000, 600)  
 layout = QVBoxLayout(janela)  
 layout.setContentsMargins(30, 25, 30, 25)

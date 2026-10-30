@@ -8,10 +8,14 @@ import unittest
 from unittest.mock import patch
 import numpy as np
 import pandas as pd
+import shiboken6
+from PySide6.QtCore import QCoreApplication, QEvent, QPoint, Qt
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 from integracao import integrar_relativo
 from tela_lynx_acm import TelaLynxAcelerometria
 from exportacao_html import criar_figura_html
+from versao import VERSAO
 from test_lynx import ArquivoMixin
 
 
@@ -42,6 +46,36 @@ class CalculoTests(unittest.TestCase):
         for tipo, valores in [('aceleracao', 3+4*t), ('velocidade', 5+2*t+7*t*t)]:
             np.testing.assert_allclose(integrar_relativo(t, pd.DataFrame({1: valores}), tipo), 0, atol=1e-9)
 
+    def test_senoide_de_aceleracao_ate_deslocamento_com_solucao_discreta(self):
+        # Soluções fechadas dos trapézios e das projeções polinomiais discretas.
+        # Verifica a cadeia completa sem usar o próprio integrador como referência.
+        x = np.linspace(-1, 1, 4001)
+        t = x + 51
+        h = x[1] - x[0]
+        w = 2*np.pi*10
+        amplitude_g = .02
+        aceleracao = pd.DataFrame({7: amplitude_g*np.cos(w*x) + 3 + .4*x})
+        c = h / (2*np.tan(w*h/2))
+        v_esperada = amplitude_g*9806.65*(c*(np.sin(w*x) - np.sin(w*x[0])) - (x-x[0])/len(x))
+        v = integrar_relativo(t, aceleracao, 'aceleracao')
+        np.testing.assert_allclose(v[7], v_esperada, atol=1e-9)
+        k = np.sum(x*np.sin(w*x)) / np.sum(x*x)
+        d_esperado = amplitude_g*9806.65*c*(-c*(np.cos(w*x)-np.cos(w*x[0])) - k*(x*x-x[0]**2)/2)
+        d = integrar_relativo(t, v, 'velocidade')
+        np.testing.assert_allclose(d[7], d_esperado, atol=1e-9)
+        self.assertEqual(v.iloc[0, 0], 0)
+        self.assertEqual(d.iloc[0, 0], 0)
+
+    def test_erro_numerico_e_grandeza_desconhecida(self):
+        dados = pd.DataFrame({1: [1., 2., 4., 8.]})
+        with self.assertRaises(ValueError):
+            integrar_relativo([0, 1, 2, 3], dados, 'fft')
+        with patch('integracao.np.linalg.lstsq', side_effect=np.linalg.LinAlgError):
+            with self.assertRaisesRegex(ValueError, 'Não foi possível integrar'):
+                integrar_relativo([0, 1, 2, 3], dados, 'aceleracao')
+        with self.assertRaisesRegex(ValueError, 'Não foi possível integrar'):
+            integrar_relativo([0, 1, 2, 3], pd.DataFrame({1: np.array([1, -1, 2, -2])*1e306}), 'aceleracao')
+
     def test_entradas_invalidas(self):
         for tempo, valores, tipo in [([0, 1], [1, 2], 'aceleracao'), ([0, 1, 2], [1, 2, 3], 'velocidade'),
                                      ([0, 0, 1], [1, 2, 3], 'aceleracao'),
@@ -65,7 +99,9 @@ class FluxoTests(ArquivoMixin, unittest.TestCase):
 
     def fechar(self):
         for janela in reversed(self.janelas):
-            janela.close()
+            if shiboken6.isValid(janela):
+                janela.close()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
         self.app.processEvents()
 
     def test_fluxo_temporal_independente_em_fft_e_rms_e_exportacoes(self):
@@ -139,3 +175,138 @@ class FluxoTests(ArquivoMixin, unittest.TestCase):
         with patch.object(QMessageBox, 'information'):
             acm.botao_velocidade.click()
         self.assertEqual(acm.janelas_resultados, [])
+
+    def janela_aceleracao(self, canais=12):
+        acm = TelaLynxAcelerometria()
+        self.janelas.append(acm)
+        acm.resize(1330, 625)
+        acm.show()
+        acm.importar_caminho(self.arquivo(['g']*canais))
+        self.app.processEvents()
+        return acm
+
+    def verificar_botao_visivel(self, janela, botao):
+        self.app.processEvents()
+        self.assertTrue(botao.isVisible())
+        self.assertTrue(botao.isEnabled())
+        self.assertFalse(botao.visibleRegion().isEmpty())
+        posicao = botao.mapTo(janela, QPoint(0, 0))
+        self.assertTrue(janela.rect().contains(posicao))
+        self.assertLessEqual(posicao.y() + botao.height(), janela.height())
+        self.assertLessEqual(posicao.x() + botao.width(), janela.width())
+
+    def test_botoes_visiveis_e_clicaveis_na_resolucao_da_captura(self):
+        acm = self.janela_aceleracao()
+        self.assertLessEqual(acm.width(), 1330)
+        self.assertLessEqual(acm.height(), 625)
+        self.assertIn(VERSAO, acm.windowTitle())
+        self.assertIn('tela_lynx_acm.py', acm.rotulo_versao.toolTip())
+        self.verificar_botao_visivel(acm, acm.botao_velocidade)
+        QTest.mouseClick(acm.botao_velocidade, Qt.MouseButton.LeftButton)
+        self.assertEqual(len(acm.janelas_resultados), 1)
+        vel = acm.janelas_resultados[0]
+        self.janelas.append(vel)
+        vel.resize(1330, 625)
+        self.verificar_botao_visivel(vel, vel.botao_deslocamento)
+        self.assertEqual(len(vel.checkboxes_canais), 12)
+        QTest.mouseClick(vel.botao_deslocamento, Qt.MouseButton.LeftButton)
+        self.assertEqual(len(vel.janelas_resultados), 1)
+        desp = vel.janelas_resultados[0]
+        self.janelas.append(desp)
+        self.verificar_botao_visivel(desp, desp.exportar)
+        for janela in (acm, vel, desp):
+            self.assertTrue(janela.isVisible())
+            self.assertIsNone(janela.parent())
+
+    def test_fechar_origem_preserva_resultados_e_libera_janelas_fechadas(self):
+        acm = self.janela_aceleracao(3)
+        vel = acm.gerar_velocidade()
+        desp = vel.gerar_deslocamento()
+        self.janelas.extend([vel, desp])
+        copia = desp.df_sensores.copy()
+        acm.close()
+        shiboken6.delete(acm)
+        self.app.processEvents()
+        self.assertTrue(vel.isVisible())
+        self.assertTrue(desp.isVisible())
+        vel.close()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        self.assertFalse(shiboken6.isValid(vel))
+        self.assertTrue(desp.isVisible())
+        pd.testing.assert_frame_equal(desp.df_sensores, copia)
+
+    def test_sem_selecao_na_velocidade_e_exportacoes_sem_curvas(self):
+        acm = self.janela_aceleracao(3)
+        vel = acm.gerar_velocidade()
+        self.janelas.append(vel)
+        for checkbox in vel.checkboxes_canais.values():
+            checkbox.setChecked(False)
+        with patch.object(QMessageBox, 'information') as aviso, patch.object(QFileDialog, 'getExistingDirectory') as pasta:
+            vel.botao_deslocamento.click()
+            vel.exportar_svg()
+            vel.exportar_html()
+            self.assertEqual(aviso.call_count, 3)
+            pasta.assert_not_called()
+        self.assertEqual(vel.janelas_resultados, [])
+
+    def test_falha_de_calculo_nao_altera_origem_ou_abre_janela(self):
+        acm = self.janela_aceleracao(3)
+        original = acm.df_sensores.copy()
+        with patch('tela_lynx_acm.integrar_relativo', side_effect=ValueError('Sinal inválido')):
+            acm.botao_velocidade.click()
+        self.assertEqual(acm.janelas_resultados, [])
+        pd.testing.assert_frame_equal(acm.df_sensores, original)
+        vel = acm.gerar_velocidade()
+        self.janelas.append(vel)
+        copia_vel = vel.df_sensores.copy()
+        with patch('tela_integracao.integrar_relativo', side_effect=ValueError('Sinal inválido')):
+            vel.botao_deslocamento.click()
+        self.assertEqual(vel.janelas_resultados, [])
+        pd.testing.assert_frame_equal(vel.df_sensores, copia_vel)
+        self.assertEqual(self.aviso.call_count, 2)
+
+    def test_exportacoes_preservam_valores_unidades_e_referencia_mesmo_sem_csv(self):
+        from matplotlib.figure import Figure
+        from plotly.graph_objects import Figure as FiguraHtml
+        acm = self.janela_aceleracao(3)
+        vel = acm.gerar_velocidade()
+        desp = vel.gerar_deslocamento()
+        self.janelas.extend([vel, desp])
+        # A exportação deve funcionar com o CSV removido e manter StartTime UTC.
+        acm.caminho_atual.unlink()
+        self.app.processEvents()
+        for janela, unidade in ((vel, 'mm/s'), (desp, 'mm')):
+            janela.checkboxes_canais[2].setChecked(False)
+            janela.checkboxes_canais[3].setChecked(False)
+            janela.graficos_eixos['X'].setXRange(.2, .8, padding=0)
+            self.app.processEvents()
+            salvar_svg = Figure.savefig
+            salvar_html = FiguraHtml.write_html
+
+            def verificar_svg(fig, *args, **kwargs):
+                self.assertIn('início do intervalo', fig._suptitle.get_text())
+                self.assertIn('= 0', fig._suptitle.get_text())
+                self.assertIn(unidade, fig.axes[0].get_ylabel())
+                self.assertEqual(sum(len(e.lines) for e in fig.axes), 1)
+                np.testing.assert_array_equal(fig.axes[0].lines[0].get_ydata(), janela.df_sensores[1])
+                np.testing.assert_array_equal(fig.axes[0].lines[0].get_xdata(), janela.tempo)
+                np.testing.assert_allclose(fig.axes[0].get_xlim(), [.2, .8])
+                return salvar_svg(fig, *args, **kwargs)
+
+            def verificar_html(fig, *args, **kwargs):
+                self.assertIn('início do intervalo', fig.layout.title.text)
+                self.assertIn('= 0', fig.layout.title.text)
+                self.assertEqual(len(fig.data), 1)
+                self.assertIn(unidade, fig.layout.yaxis.title.text)
+                np.testing.assert_array_equal(fig.data[0].y, janela.df_sensores[1])
+                self.assertEqual(fig.data[0].x[0], '2026-10-28T12:00:00.000000')
+                self.assertEqual(fig.layout.xaxis.range[0], '2026-10-28T12:00:00.200000')
+                return salvar_html(fig, *args, **kwargs)
+
+            with patch.object(QFileDialog, 'getExistingDirectory', return_value=self.tmp.name), patch.object(QMessageBox, 'information'):
+                with patch.object(Figure, 'savefig', verificar_svg), patch.object(FiguraHtml, 'write_html', verificar_html):
+                    janela.exportar_svg()
+                    janela.exportar_html()
+        self.aviso.assert_not_called()
+        self.assertEqual(len(list(Path(self.tmp.name).glob('*.svg'))), 2)
+        self.assertEqual(len(list(Path(self.tmp.name).glob('*.html'))), 2)
