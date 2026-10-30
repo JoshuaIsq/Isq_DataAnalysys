@@ -16,6 +16,8 @@ class TelaInicial(QWidget):
         super().__init__()
         self.setWindowTitle(f'ISQ_Analysys — v{__version__}')
         self.resize(1000, 600)
+        self.setObjectName('tela_inicial')
+        self.setStyleSheet('''QWidget#tela_inicial {background-color: #FFFFFF;}''')
         self.janela_acelerometria = None
         self.janela_extensometria = None
         layout = QVBoxLayout(self)
@@ -29,17 +31,16 @@ class TelaInicial(QWidget):
         layout.addWidget(logo, 0, Qt.AlignmentFlag.AlignHCenter)
         titulo = QLabel('Selecione sua placa')
         titulo.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(titulo)
+        layout.addWidget(titulo, 0, Qt.AlignmentFlag.AlignHCenter)
+        layout.addSpacing(20)
         self.botao_lynx = QPushButton('Lynx')
+        self.botao_lynx.setStyleSheet('border: 1px solid #63757F')
         menu = QMenu(self.botao_lynx)
         menu.addAction('Extensometria').triggered.connect(self.abrir_extensometria)
         menu.addAction('Acelerometria').triggered.connect(self.abrir_acelerometria)
         self.botao_lynx.setMenu(menu)
         layout.addWidget(self.botao_lynx)
-        layout.addStretch()
-        sobre = QPushButton('Sobre esta instalação')
-        sobre.clicked.connect(self.mostrar_instalacao)
-        layout.addWidget(sobre, 0, Qt.AlignmentFlag.AlignRight)
+        layout.addStretch(1)
 
     def abrir_acelerometria(self):
         if self.janela_acelerometria is None:
