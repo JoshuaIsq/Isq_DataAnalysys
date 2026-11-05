@@ -11,6 +11,11 @@ from isq_dataanalysys.leitores.metadados import ler_inicio_lynx
 class ExportacaoGraficos:
     """Requer grafico, df_sensores e os serviços de uma QMainWindow."""
 
+    def plots_para_exportar(self):
+        if isinstance(self.grafico, pg.PlotWidget):
+            return [self.grafico.getPlotItem()]
+        return [plot for plot in self.graficos_eixos.values() if plot.isVisible()]
+
     def exportar_svg(self):
         if getattr(self, "df_sensores", None) is None:
             QMessageBox.information(
@@ -20,12 +25,7 @@ class ExportacaoGraficos:
             )
             return
 
-        # Extensometria: um gráfico.
-        # Acelerometria: os três gráficos dos eixos.
-        if isinstance(self.grafico, pg.PlotWidget):
-            plots = [self.grafico.getPlotItem()]
-        else:
-            plots = list(self.graficos_eixos.values())
+        plots = self.plots_para_exportar()
 
         # Exporta somente as curvas que estão selecionadas.
         selecionadas = [
@@ -78,12 +78,7 @@ class ExportacaoGraficos:
             )
             return
 
-        # Extensometria: um gráfico.
-        # Acelerometria: os três gráficos dos eixos.
-        if isinstance(self.grafico, pg.PlotWidget):
-            plots = [self.grafico.getPlotItem()]
-        else:
-            plots = list(self.graficos_eixos.values())
+        plots = self.plots_para_exportar()
 
         tem_selecao = any(
             curva.isVisible()

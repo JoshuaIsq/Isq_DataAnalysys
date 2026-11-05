@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
 )
 from .exportacao import ExportacaoGraficos
 from isq_dataanalysys.processamento.integracao import integrar_relativo
+from isq_dataanalysys.leitores.acelerometria import EIXOS, EIXO_DESCONHECIDO
 from isq_dataanalysys import __version__ as VERSAO
 
 
@@ -113,9 +114,13 @@ class TelaIntegracao(ExportacaoGraficos, QMainWindow):
         self.grafico.setBackground('w')
         direito.addWidget(self.grafico, 1)
         self.graficos_eixos = {}
-        for linha, eixo in enumerate('XYZ'):
+        presentes = {eixo for eixo, _rotulo in self.canais.values()}
+        eixos = [e for e in EIXOS if e in presentes]
+        base = None
+        for linha, eixo in enumerate(eixos):
             plot = self.grafico.addPlot(row=linha, col=0)
-            plot.setTitle(f'Eixo {eixo} — {nome} {referencia}', color='#333333', size='10pt')
+            titulo_eixo = eixo if eixo == EIXO_DESCONHECIDO else f'Eixo {eixo}'
+            plot.setTitle(f'{titulo_eixo} — {nome} {referencia}', color='#333333', size='10pt')
             plot.setLabel('bottom', 'Tempo', units='s')
             plot.setLabel('left', nome, units=unidade)
             for lado in ('left', 'bottom'):
@@ -125,8 +130,10 @@ class TelaIntegracao(ExportacaoGraficos, QMainWindow):
             plot.showGrid(x=True, y=True, alpha=.25)
             plot.addLegend(colCount=4, offset=(10, 5), labelTextColor='#333333')
             self.graficos_eixos[eixo] = plot
-            if linha:
-                plot.setXLink(self.graficos_eixos['X'])
+            if base is None:
+                base = plot
+            else:
+                plot.setXLink(base)
         cores = ['#1565C0', '#D55E00', '#18864B', '#8E44AD']
         for numero, (canal, (eixo, rotulo)) in enumerate(self.canais.items()):
             self.curvas[canal] = self.graficos_eixos[eixo].plot(

@@ -4,7 +4,9 @@ import pyqtgraph as pg
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QCheckBox, QFrame, QSizePolicy,
                                QPushButton, QDoubleSpinBox, QLabel, QFileDialog, QMessageBox,)
 from isq_dataanalysys.interface.base import Tela
-from isq_dataanalysys.leitores.acelerometria import ler_lynx_acelerometria
+from isq_dataanalysys.leitores.acelerometria import (
+    EIXOS, EIXO_DESCONHECIDO, ler_lynx_acelerometria,
+)
 from isq_dataanalysys.leitores.lynx import LinhaFinalIncompleta, aviso_unidades
 from isq_dataanalysys.processamento.sinais import Processamento
 from isq_dataanalysys.processamento.integracao import integrar_relativo
@@ -66,6 +68,11 @@ class TelaLynxAcelerometria(Tela):
         self.criar_controles_rms()
         self.janelas_resultados = []
         self.criar_controles_integracao()
+        self.rotulo_importacao = QLabel()
+        self.rotulo_importacao.setWordWrap(True)
+        self.rotulo_importacao.setStyleSheet("color: #6b4e16; background: #fff4dc; padding: 4px;")
+        self.rotulo_importacao.hide()
+        self.layout_controles.addWidget(self.rotulo_importacao, 6, 0, 1, 4)
 
     def criar_controle_passa_banda(self):
         # Mantém os controles dentro da largura de 1330 px usada pela tela.
@@ -238,6 +245,13 @@ class TelaLynxAcelerometria(Tela):
         self.campo_janela_rms.setRange(2 / fs, len(tempo) / fs)
         self.checkbox_log_rms.setEnabled(False)
         self.recriar_sensores(sensores)
+        avisos = info["avisos"]
+        self.rotulo_importacao.setText(
+            f"{len(canais.columns)} canais em g importados; {len(avisos)} aviso(s). "
+            "Passe o mouse aqui para conferir a identificação dos canais."
+        )
+        self.rotulo_importacao.setToolTip("\n".join(avisos))
+        self.rotulo_importacao.setVisible(bool(avisos))
         self.atualizar_indicacao_filtros()
         self.plotar_dados_lynx()
         aviso = aviso_unidades(info, "acelerometria")
@@ -250,22 +264,26 @@ class TelaLynxAcelerometria(Tela):
         self.grafico.setBackground("w")
         self.graficos_eixos = {}
         for linha, eixo in enumerate("XYZ"):
-            grafico = self.grafico.addPlot(
-                row=linha, col=0, title=f"Eixo {eixo}",
-                axisItems={"bottom": EixoDataHora(orientation="bottom")},
-            )
-            grafico.setLabel("bottom", "Tempo", units="s")
-            grafico.setLabel("left", "Aceleração", units="g")
-            grafico.showGrid(x=True, y=True, alpha=0.25)
-            grafico.addLegend(colCount=4, offset=(10, 5), labelTextColor="#333333")
-            for lado in ("left", "bottom"):
-                grafico.getAxis(lado).setPen("#555555")
-                grafico.getAxis(lado).setTextPen("#333333")
-            grafico.getAxis("left").enableAutoSIPrefix(False)
-            self.graficos_eixos[eixo] = grafico
+            self.adicionar_grafico_eixo(eixo, linha)
         self.graficos_eixos["Y"].setXLink(self.graficos_eixos["X"])
         self.graficos_eixos["Z"].setXLink(self.graficos_eixos["X"])
         layout_direito.addWidget(self.grafico, 1)
+
+    def adicionar_grafico_eixo(self, eixo, linha):
+        titulo = eixo if eixo == EIXO_DESCONHECIDO else f"Eixo {eixo}"
+        grafico = self.grafico.addPlot(
+            row=linha, col=0, title=titulo,
+            axisItems={"bottom": EixoDataHora(orientation="bottom")},
+        )
+        grafico.setLabel("bottom", "Tempo", units="s")
+        grafico.setLabel("left", "Aceleração", units="g")
+        grafico.showGrid(x=True, y=True, alpha=0.25)
+        grafico.addLegend(colCount=4, offset=(10, 5), labelTextColor="#333333")
+        for lado in ("left", "bottom"):
+            grafico.getAxis(lado).setPen("#555555")
+            grafico.getAxis(lado).setTextPen("#333333")
+        grafico.getAxis("left").enableAutoSIPrefix(False)
+        self.graficos_eixos[eixo] = grafico
 
     def recriar_sensores(self, sensores):
         for widget in list(self.checkboxes_canais.values()) + self.grupos_eixos:
@@ -276,7 +294,7 @@ class TelaLynxAcelerometria(Tela):
         self.checkboxes_eixos = {}
         self.grupos_eixos = []
         for numero, sensor in enumerate(sensores, 1):
-            checkbox = QCheckBox(f"Acelerômetro {numero}")
+            checkbox = QCheckBox(self.info_arquivo["rotulos_sensores"][numero - 1])
             checkbox.setChecked(True)
             checkbox.setToolTip("\n".join(
                 f"{eixo}: Canal {n} — {self.info_arquivo['nomes'][n]}"
@@ -294,7 +312,7 @@ class TelaLynxAcelerometria(Tela):
             layout.setContentsMargins(20, 0, 0, 0)
             layout.setSpacing(4)
             sensor = self.sensores_lynx[numero - 1]
-            for eixo in sorted(sensor, key="XYZ".index):
+            for eixo in sorted(sensor, key=EIXOS.index):
                 n = sensor[eixo]
                 checkbox = QCheckBox(f"{eixo}: Canal {n} — {self.info_arquivo['nomes'][n]}")
                 checkbox.setToolTip(checkbox.text())
@@ -400,13 +418,18 @@ class TelaLynxAcelerometria(Tela):
             rotulo, unidade = "Aceleração", "g"
             titulo_modo = "sinal no tempo"
 
+        if (any(EIXO_DESCONHECIDO in sensor for sensor in self.sensores_lynx)
+                and EIXO_DESCONHECIDO not in self.graficos_eixos):
+            self.adicionar_grafico_eixo(EIXO_DESCONHECIDO, 3)
+
         self.curvas_lynx.clear()
 
         for eixo, grafico in self.graficos_eixos.items():
             grafico.clear()
             grafico.setLogMode(x=False, y=log)
+            titulo_eixo = eixo if eixo == EIXO_DESCONHECIDO else f"Eixo {eixo}"
             grafico.setTitle(
-                f"Eixo {eixo} — {titulo_modo}",
+                f"{titulo_eixo} — {titulo_modo}",
                 color="#333333",
             )
             grafico.setLabel("left", rotulo, units=unidade)
@@ -440,10 +463,9 @@ class TelaLynxAcelerometria(Tela):
                 self.curvas_lynx[(numero, eixo)] = curva
 
         self.atualizar_visibilidade()
-        presentes = [e for e in "XYZ" if any(e in s for s in self.sensores_lynx)]
+        presentes = {e for sensor in self.sensores_lynx for e in sensor}
         base = None
-        for eixo in "XYZ":
-            grafico = self.graficos_eixos[eixo]
+        for eixo, grafico in self.graficos_eixos.items():
             grafico.setVisible(eixo in presentes)
             grafico.setXLink(None)
             if eixo in presentes:
@@ -506,6 +528,7 @@ class TelaLynxAcelerometria(Tela):
         if not canais:
             QMessageBox.information(self, "Integração", "Selecione pelo menos um canal.")
             return
+        canais = dict(sorted(canais.items()))
         try:
             dados = integrar_relativo(self.tempo, self.df_sensores[list(canais)], 'aceleracao')
         except ValueError as erro:

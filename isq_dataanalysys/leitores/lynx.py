@@ -47,11 +47,26 @@ def ler_canais_lynx(caminho, unidades_aceitas, modalidade, ignorar_ultima_incomp
         if not linha or linha[0].strip() != etiqueta:
             raise ValueError(f"Cabeçalho inválido: esperada a linha {etiqueta}.")
 
-    nomes = []
-    for celula in cabecalho[0][1:]:
-        nome = celula.strip()
-        if not nome or nome.casefold().startswith(("sampfreq:", "starttime")):
+    # Nome vazio não encerra os canais: a posição e a unidade ainda permitem
+    # importar essa coluna. Remove apenas o espaço vazio antes dos metadados.
+    fim_canais = len(cabecalho[0])
+    for posicao, celula in enumerate(cabecalho[0][1:], 1):
+        if celula.strip().casefold().startswith(("sampfreq:", "starttime")):
+            fim_canais = posicao
             break
+    while fim_canais > 1:
+        posicao = fim_canais - 1
+        nome_vazio = not cabecalho[0][posicao].strip()
+        unidade_vazia = posicao >= len(cabecalho[1]) or not cabecalho[1][posicao].strip()
+        if not (nome_vazio and unidade_vazia):
+            break
+        fim_canais -= 1
+    nomes, avisos = [], []
+    for posicao in range(1, fim_canais):
+        nome = cabecalho[0][posicao].strip()
+        if not nome:
+            nome = f"Canal {posicao} (sem nome)"
+            avisos.append(f"Canal {posicao}: nome vazio no CSV; identificado pela posição original.")
         nomes.append(nome)
     if not nomes:
         raise ValueError("O arquivo não informa canais na primeira linha.")
@@ -83,7 +98,6 @@ def ler_canais_lynx(caminho, unidades_aceitas, modalidade, ignorar_ultima_incomp
     posicoes = [c["posicao"] for c in aceitos]
     selecionada = tabela.iloc[:, [0] + posicoes].copy()
     vazias = selecionada.apply(lambda coluna: coluna.str.strip().eq(""))
-    avisos = []
     linhas_ignoradas = 0
     if vazias.iloc[:-1].any().any():
         raise ValueError("Existem campos vazios antes da última linha nos canais selecionados.")

@@ -102,9 +102,12 @@ class LeituraTests(ArquivoMixin, unittest.TestCase):
         _, _, sensores, _ = ler_lynx_acelerometria(self.arquivo(['MPa', 'g', 'μm/m', 'g', 'g', 'mm']))
         self.assertEqual(sensores, [{'X': 2, 'Y': 4, 'Z': 5}])
 
-    def test_trio_incompleto_nao_adivinha_eixo(self):
-        with self.assertRaisesRegex(ValueError, 'trios completos'):
-            ler_lynx_acelerometria(self.arquivo(['g'] * 4 + ['MPa']))
+    def test_trio_incompleto_importa_sem_adivinhar_eixo(self):
+        _, dados, sensores, info = ler_lynx_acelerometria(self.arquivo(['g'] * 4 + ['MPa']))
+        self.assertEqual(list(dados), [1, 2, 3, 4])
+        self.assertEqual(sensores, [{'Sem eixo': n} for n in range(1, 5)])
+        self.assertTrue(all(eixo == 'Sem eixo' for eixo in info['eixos'].values()))
+        self.assertTrue(any('eixo não identificado' in aviso for aviso in info['avisos']))
 
     def test_nenhum_canal_compativel(self):
         for leitor in (ler_lynx_extensometria, ler_lynx_acelerometria):
@@ -165,7 +168,6 @@ class LeituraTests(ArquivoMixin, unittest.TestCase):
 
     def test_cabecalho_e_colunas_invalidas(self):
         alteracoes = [lambda l: l[0].__setitem__(0, 'outro'),
-                      lambda l: l[0].__setitem__(1, ''),
                       lambda l: l[6].append('99'),
                       lambda l: l[1].clear(),
                       lambda l: l[2].clear()]

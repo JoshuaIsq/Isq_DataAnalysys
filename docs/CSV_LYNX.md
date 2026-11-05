@@ -12,6 +12,8 @@ A coluna A contém o tempo em segundos. A coluna B corresponde ao canal 1,
 C ao canal 2, e assim por diante. Cada nome está na primeira linha e sua unidade
 na segunda, na mesma coluna. Os nomes são livres, inclusive repetidos.
 O programa identifica o canal pela posição, preservando sua numeração ao filtrar.
+Um nome vazio recebe o rótulo `Canal N (sem nome)`, com aviso; ele não encerra a
+leitura nem elimina os canais seguintes. Os valores e o CSV original são preservados.
 Campos de metadados, como `SampFreq:`, podem aparecer após os canais.
 
 | Opção de análise | Unidades importadas |
@@ -29,9 +31,38 @@ com posição, nome e unidade. Eles não entram nos gráficos, filtros, FFT ou R
 da análise escolhida. Se nenhum canal for compatível, a importação é recusada
 e o arquivo que já estava aberto é preservado.
 
-Na acelerometria, os canais em `g` formam trios X, Y, Z na ordem em que aparecem
-no CSV, depois da seleção pela unidade. A quantidade de acelerômetros é variável.
-Um trio incompleto é recusado: confira a ordem e as unidades no arquivo.
+## Canais de acelerometria fora de ordem
+
+Não é necessário ordenar as colunas nem completar trios. Cada coluna em `g`
+é importada uma única vez, mesmo com nomes repetidos, sensores incompletos ou
+outras unidades entre os canais. A associação funciona assim:
+
+- Um único X, Y ou Z isolado no nome identifica o eixo. São aceitos, por exemplo,
+  `ACC 92128 - Y`, `ACC_92128_y`, `ACC 92128 [Y]`, `ACC92128Y`, `Y - ACC 92128` e
+  `ACC 92128 - Eixo Y (g)`.
+- Os canais de um sensor podem estar intercalados ou em qualquer ordem.
+- Dois canais chamados `ACC 92131 - Y` continuam sendo dois canais Y distintos,
+  identificados pelas posições no arquivo. O segundo não sobrescreve o primeiro
+  nem vira X/Z para completar um trio.
+- Um canal sem eixo identificável aparece em **Sem eixo**. Nomes conflitantes,
+  como `ACC X Y`, também entram nesse painel. Eles continuam disponíveis para
+  filtros, FFT/RMS, velocidade, deslocamento e exportações SVG/HTML.
+- Somente para compatibilidade com arquivos antigos sem nenhuma indicação de eixo,
+  uma quantidade múltipla de três mantém o padrão X/Y/Z por posição. A interface
+  identifica esses grupos como **XYZ por posição** e avisa que a associação é
+  inferida. Essa alternativa não substitui eixos reconhecidos nem resolve nomes
+  com indicações conflitantes.
+
+A faixa de avisos abaixo dos controles informa a quantidade de avisos. Passe o
+mouse sobre ela para consultar nomes repetidos, eixos ausentes, associações
+inferidas e outros avisos da importação. A seleção continua sendo individual
+por canal, inclusive para canais com nomes iguais. As janelas de resultados
+mantêm a mesma associação e os dados da origem permanecem preservados.
+
+Essa tolerância trata a identificação e a organização dos canais. Unidades e
+dados numéricos ainda precisam ser interpretáveis: o programa não inventa eixos,
+valores, unidades ou instantes para contornar dados inválidos. A inferência
+posicional de arquivos legados é sempre indicada explicitamente.
 
 ## Analisar tensão e deformação
 

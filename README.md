@@ -24,6 +24,19 @@ python .\main.py --diagnostico
 A tela inicial também oferece **Sobre esta instalação**. A versão e o caminho
 exibidos vêm do mesmo pacote usado pelas telas e pelos cálculos.
 
+### CSVs com canais fora de ordem
+
+A acelerometria aceita sensores incompletos, eixos fora de ordem e nomes/eixos
+repetidos. Cada coluna em `g` permanece um canal independente: dois canais Y
+com o mesmo nome são plotados em Y, sem sobrescrever dados ou exigir um trio.
+Canais sem eixo identificável aparecem em **Sem eixo** e também permitem filtros,
+FFT/RMS, velocidade, deslocamento e exportação. Nomes vazios recebem um rótulo
+pela posição da coluna. Os avisos da importação ficam disponíveis na tela.
+
+Arquivos legados sem indicação de nenhum eixo e com trios completos mantêm
+X/Y/Z por posição, com indicação explícita de que os eixos foram inferidos.
+Consulte as [regras de identificação dos canais](docs/CSV_LYNX.md).
+
 ### Passa-banda na acelerometria
 
 Depois de abrir um CSV, clique em **Passa-banda…**. Preencha **Low cutoff — corte
