@@ -24,6 +24,31 @@ python .\main.py --diagnostico
 A tela inicial também oferece **Sobre esta instalação**. A versão e o caminho
 exibidos vêm do mesmo pacote usado pelas telas e pelos cálculos.
 
+### Passa-banda na acelerometria
+
+Depois de abrir um CSV, clique em **Passa-banda…**. Preencha **Low cutoff — corte
+inferior** e **High cutoff — corte superior**, em Hz, e clique em **Aplicar**.
+Os cortes devem obedecer `0 < inferior < superior < frequência de amostragem / 2`.
+Por exemplo, um arquivo de 200 Hz exige corte superior abaixo de 100 Hz.
+
+O passa-banda é independente: não ativa passa-alta, passa-baixa nem outros
+tratamentos. Os filtros existentes continuam disponíveis e só entram no cálculo
+quando aplicados pelo usuário. Se já estavam ativos, permanecem ativos. Digitar
+valores e cancelar não muda o sinal. Para retirar apenas esse filtro, reabra seu
+botão e clique em **Desativar passa-banda**. **Restaurar original** e a importação
+de outro arquivo limpam todos os tratamentos.
+
+O processamento sempre parte dos dados originais, na ordem: calibração, outliers,
+offset, passa-banda, passa-alta, passa-baixa e média móvel (somente os ativos).
+RMS, FFT, integração e exportação usam o resultado tratado. A extensometria mantém
+seus controles atuais e não ganha o botão passa-banda.
+
+O cálculo usa Butterworth em SOS com `Processamento.ORDEM = 4` e aplicação em ida
+e volta (`sosfiltfilt`). No projeto passa-banda do SciPy, esse parâmetro gera um
+filtro de ordem 8 por passagem. Os cortes informados são os cortes do projeto de
+uma passagem: aproximadamente −3 dB por passagem, ou −6 dB após ida e volta.
+O filtro tem fase zero e pode apresentar transientes no início e no fim do sinal.
+
 ## Organização
 
 ```text

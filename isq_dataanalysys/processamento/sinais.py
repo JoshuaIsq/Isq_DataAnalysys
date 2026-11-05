@@ -58,9 +58,21 @@ class Processamento:
 
     @staticmethod
     def filtro_frequencia(dados, corte, fs, tipo):
-        corte = float(corte)
-        if not np.isfinite(corte) or not 0 < corte < fs / 2:
-            raise ValueError(f"A frequência de corte deve ser maior que 0 e menor que {fs / 2:g} Hz.")
+        if tipo == "bandpass":
+            try:
+                corte = np.asarray(corte, dtype=float)
+            except (TypeError, ValueError) as erro:
+                raise ValueError("Passa-banda: informe os dois cortes em Hz.") from erro
+            if (corte.shape != (2,) or not np.isfinite(corte).all()
+                    or not 0 < corte[0] < corte[1] < fs / 2):
+                raise ValueError(
+                    "Passa-banda: use 0 < corte inferior (Low cutoff) "
+                    f"< corte superior (High cutoff) < {fs / 2:g} Hz."
+                )
+        else:
+            corte = float(corte)
+            if not np.isfinite(corte) or not 0 < corte < fs / 2:
+                raise ValueError(f"A frequência de corte deve ser maior que 0 e menor que {fs / 2:g} Hz.")
         sos = butter(Processamento.ORDEM, corte, btype=tipo, fs=fs, output="sos")
         padlen = 3 * (2 * len(sos) + 1 - min(
             int((sos[:, 2] == 0).sum()), int((sos[:, 5] == 0).sum())
@@ -77,6 +89,13 @@ class Processamento:
     @staticmethod
     def passa_baixa(dados, corte, fs):
         return Processamento.filtro_frequencia(dados, corte, fs, "lowpass")
+
+    @staticmethod
+    def passa_banda(dados, corte_inferior, corte_superior, fs):
+        """Butterworth passa-banda em SOS, aplicado em ida e volta."""
+        return Processamento.filtro_frequencia(
+            dados, (corte_inferior, corte_superior), fs, "bandpass"
+        )
 
     @staticmethod
     def media_movel(dados, amostras):
@@ -118,7 +137,7 @@ class Processamento:
     def aplicar(tempo, original, configuracao):
         fs = Processamento.validar_dados(tempo, original)
         permitidos = {"calibracao", "outliers", "janela_outliers", "offset",
-                      "passa_alta", "passa_baixa", "media_movel"}
+                      "passa_alta", "passa_baixa", "passa_banda", "media_movel"}
         if set(configuracao) - permitidos:
             raise ValueError("Configuração de tratamento desconhecida.")
         alta = configuracao.get("passa_alta")
@@ -135,6 +154,10 @@ class Processamento:
             )
         if "offset" in configuracao:
             resultado = Processamento.ajuste_offset(resultado, configuracao["offset"])
+        if "passa_banda" in configuracao:
+            resultado = Processamento.filtro_frequencia(
+                resultado, configuracao["passa_banda"], fs, "bandpass"
+            )
         if alta is not None:
             resultado = Processamento.passa_alta(resultado, alta, fs)
         if baixa is not None:
