@@ -12,8 +12,34 @@ from isq_dataanalysys.interface.integracao import TelaIntegracao, mostrar_result
 from isq_dataanalysys.interface.passa_banda import DialogoPassaBanda
 from isq_dataanalysys import __version__ as VERSAO
 from isq_dataanalysys.leitores.metadados import ler_inicio_lynx
+from datetime import timedelta
 
 
+class EixoDataHora(pg.AxisItem):
+    """Eixo inferior que mostra data/hora do timestamp; os dados continuam em segundos."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.inicio = None
+
+    def definir_inicio(self, inicio):
+        self.inicio = inicio
+        self.enableAutoSIPrefix(inicio is None)
+
+    def tickStrings(self, values, scale, spacing):
+        if self.inicio is None:
+            return super().tickStrings(values, scale, spacing)
+        subsegundo = spacing < 1
+        formato = "%d/%m/%Y %H:%M:%S" + (".%f" if subsegundo else "")
+        textos = []
+        for valor in values:
+            try:
+                texto = (self.inicio + timedelta(seconds=float(valor))).strftime(formato)
+            except (OverflowError, ValueError):
+                texto = ""
+            textos.append(texto[:-3] if subsegundo else texto)  # milissegundos
+        return textos
+    
 class TelaLynxAcelerometria(Tela):
     def __init__(self):
         super().__init__()
@@ -224,7 +250,10 @@ class TelaLynxAcelerometria(Tela):
         self.grafico.setBackground("w")
         self.graficos_eixos = {}
         for linha, eixo in enumerate("XYZ"):
-            grafico = self.grafico.addPlot(row=linha, col=0, title=f"Eixo {eixo}")
+            grafico = self.grafico.addPlot(
+                row=linha, col=0, title=f"Eixo {eixo}",
+                axisItems={"bottom": EixoDataHora(orientation="bottom")},
+            )
             grafico.setLabel("bottom", "Tempo", units="s")
             grafico.setLabel("left", "Aceleração", units="g")
             grafico.showGrid(x=True, y=True, alpha=0.25)
@@ -264,8 +293,9 @@ class TelaLynxAcelerometria(Tela):
             layout = QVBoxLayout(grupo)
             layout.setContentsMargins(20, 0, 0, 0)
             layout.setSpacing(4)
-            for eixo in "XYZ":
-                n = self.sensores_lynx[numero - 1][eixo]
+            sensor = self.sensores_lynx[numero - 1]
+            for eixo in sorted(sensor, key="XYZ".index):
+                n = sensor[eixo]
                 checkbox = QCheckBox(f"{eixo}: Canal {n} — {self.info_arquivo['nomes'][n]}")
                 checkbox.setToolTip(checkbox.text())
                 checkbox.setChecked(True)
@@ -277,8 +307,9 @@ class TelaLynxAcelerometria(Tela):
             checkbox_sensor.toggled.connect(lambda marcado, n=numero: self.alternar_acelerometro(n, marcado))
 
     def alternar_acelerometro(self, numero, marcado):
-        for eixo in "XYZ":
-            self.checkboxes_eixos[(numero, eixo)].setEnabled(marcado)
+        for (n, _eixo), checkbox in self.checkboxes_eixos.items():
+            if n == numero:
+                checkbox.setEnabled(marcado)
         self.atualizar_visibilidade()
 
     def atualizar_visibilidade(self):
@@ -379,17 +410,21 @@ class TelaLynxAcelerometria(Tela):
                 color="#333333",
             )
             grafico.setLabel("left", rotulo, units=unidade)
-            grafico.setLabel(
-                "bottom",
-                "Frequência" if fft else "Tempo",
-                units="Hz" if fft else "s",
+            usar_data = (not fft) and self.inicio_arquivo is not None
+            grafico.getAxis("bottom").definir_inicio(
+                self.inicio_arquivo if usar_data else None
             )
+            if fft:
+                grafico.setLabel("bottom", "Frequência", units="Hz")
+            elif usar_data:
+                grafico.setLabel("bottom", "Data/Hora (UTC)", units="")
+            else:
+                grafico.setLabel("bottom", "Tempo", units="s")
 
         cores = ["#1565C0", "#D55E00", "#18864B", "#8E44AD"]
 
         for numero, sensor in enumerate(self.sensores_lynx, start=1):
-            for eixo in "XYZ":
-                n = sensor[eixo]
+            for eixo, n in sensor.items():
                 valores = dados_plot[n].to_numpy()
 
                 if log:
@@ -405,6 +440,17 @@ class TelaLynxAcelerometria(Tela):
                 self.curvas_lynx[(numero, eixo)] = curva
 
         self.atualizar_visibilidade()
+        presentes = [e for e in "XYZ" if any(e in s for s in self.sensores_lynx)]
+        base = None
+        for eixo in "XYZ":
+            grafico = self.graficos_eixos[eixo]
+            grafico.setVisible(eixo in presentes)
+            grafico.setXLink(None)
+            if eixo in presentes:
+                if base is None:
+                    base = grafico
+                else:
+                    grafico.setXLink(base)
 
         for grafico in self.graficos_eixos.values():
             grafico.enableAutoRange()

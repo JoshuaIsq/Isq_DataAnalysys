@@ -32,7 +32,7 @@ def criar_figura_html(plots, inicio=None, titulo="Dados tratados", descricao="")
 
         usar_data = (
             inicio is not None
-            and eixo_x.labelUnits == "s"
+            and (eixo_x.labelUnits == "s" or getattr(eixo_x, "inicio", None) is not None)
             and not eixo_x.logMode
         )
 
