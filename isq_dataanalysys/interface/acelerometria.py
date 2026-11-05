@@ -9,6 +9,7 @@ from isq_dataanalysys.leitores.lynx import LinhaFinalIncompleta, aviso_unidades
 from isq_dataanalysys.processamento.sinais import Processamento
 from isq_dataanalysys.processamento.integracao import integrar_relativo
 from isq_dataanalysys.interface.integracao import TelaIntegracao, mostrar_resultado
+from isq_dataanalysys.interface.passa_banda import DialogoPassaBanda
 from isq_dataanalysys import __version__ as VERSAO
 from isq_dataanalysys.leitores.metadados import ler_inicio_lynx
 
@@ -35,9 +36,63 @@ class TelaLynxAcelerometria(Tela):
         self.info_rms = None
         self.info_fft = None
         self.abrir.clicked.connect(self.carregar_arquivo_lynx)
+        self.criar_controle_passa_banda()
         self.criar_controles_rms()
         self.janelas_resultados = []
         self.criar_controles_integracao()
+
+    def criar_controle_passa_banda(self):
+        # Mantém os controles dentro da largura de 1330 px usada pela tela.
+        self.layout_controles.setHorizontalSpacing(16)
+        self.botao_passa_banda = QPushButton("Passa-banda…")
+        self.botao_passa_banda.setObjectName("passa_banda")
+        self.botao_passa_banda.setEnabled(False)
+        self.botao_passa_banda.setToolTip(
+            "Define Low cutoff e High cutoff em Hz para os canais carregados. "
+            "Passa-alta e passa-baixa só atuam se você também os aplicar."
+        )
+        self.layout_controles.addWidget(self.botao_passa_banda, 2, 2)
+        self.botao_passa_banda.clicked.connect(self.abrir_passa_banda)
+
+    def abrir_passa_banda(self):
+        if self.df_original is None:
+            return
+        dialogo = DialogoPassaBanda(
+            self.info_processamento["fs"],
+            self.config_filtros.get("passa_banda"),
+            parent=self,
+        )
+
+        def aplicar(desativar=False):
+            proposta = self.config_filtros.copy()
+            if desativar:
+                proposta.pop("passa_banda", None)
+            else:
+                proposta["passa_banda"] = dialogo.cortes()
+            # Só fecha após um cálculo válido. Um erro preserva dados e configuração.
+            if self.aplicar_configuracao(proposta):
+                dialogo.accept()
+
+        dialogo.botao_aplicar.clicked.connect(lambda: aplicar())
+        dialogo.botao_desativar.clicked.connect(lambda: aplicar(desativar=True))
+        dialogo.exec()
+        dialogo.deleteLater()
+
+    def atualizar_indicacao_filtros(self):
+        super().atualizar_indicacao_filtros()
+        cortes = self.config_filtros.get("passa_banda")
+        if cortes is None:
+            self.botao_passa_banda.setText("Passa-banda…")
+            return
+        inferior, superior = cortes
+        descricao = f"Passa-banda: {inferior:g}–{superior:g} Hz"
+        self.botao_passa_banda.setText(descricao)
+        texto = self.rotulo_ativos.text()
+        if texto == "Tratamentos ativos: nenhum":
+            texto = "Tratamentos ativos: " + descricao
+        else:
+            texto += "; " + descricao
+        self.rotulo_ativos.setText(texto)
 
     def criar_controles_integracao(self):
         painel = QFrame()
@@ -150,6 +205,7 @@ class TelaLynxAcelerometria(Tela):
         self.botao_fft.setChecked(False)
         self.botao_fft.blockSignals(False)
         self.botao_velocidade.setEnabled(True)
+        self.botao_passa_banda.setEnabled(True)
         self.botao_fft.setEnabled(True)
         self.botao_rms.setEnabled(True)
         self.campo_janela_rms.setEnabled(True)
