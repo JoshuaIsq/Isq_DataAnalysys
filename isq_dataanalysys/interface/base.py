@@ -7,6 +7,9 @@ from isq_dataanalysys.processamento.sinais import Processamento
 import pyqtgraph as pg
 
 from .exportacao import ExportacaoGraficos
+from .referencia_temporal import PainelReferenciaTemporal
+from .eixo_temporal import configurar_eixo_temporal
+from isq_dataanalysys.leitores.metadados import ler_referencia_temporal
 
 
 class Tela(ExportacaoGraficos, QMainWindow):
@@ -149,6 +152,32 @@ class Tela(ExportacaoGraficos, QMainWindow):
         self.exportar.setMenu(self.menu_exportar)
 
         self.criar_graficos(layout_direito)
+        self.painel_referencia = PainelReferenciaTemporal()
+        self.layout_controles.addWidget(self.painel_referencia, 8, 0, 1, 4)
+        self.painel_referencia.alterado.connect(self.definir_referencia_manual)
+
+    def carregar_referencia_temporal(self, caminho):
+        info = ler_referencia_temporal(caminho)
+        self.inicio_arquivo = info["inicio"]
+        self.painel_referencia.atualizar(info)
+        self.atualizar_referencia_temporal()
+
+    def definir_referencia_manual(self, inicio):
+        self.inicio_arquivo = inicio
+        self.atualizar_referencia_temporal()
+
+    def atualizar_referencia_temporal(self):
+        # Apenas rótulos e referência de exportação; dados, tratamentos e zoom são preservados.
+        if isinstance(self.grafico, pg.PlotWidget):
+            plots = [self.grafico.getPlotItem()]
+        else:
+            plots = list(self.graficos_eixos.values())
+        botao_fft = getattr(self, "botao_fft", None)
+        fft = botao_fft is not None and botao_fft.isChecked()
+        for plot in plots:
+            configurar_eixo_temporal(plot, None if fft else self.inicio_arquivo)
+            if fft:
+                plot.setLabel("bottom", "Frequência", units="Hz")
 
     def registrar_parametro(self, nome):
         if getattr(self, "df_original", None) is None:

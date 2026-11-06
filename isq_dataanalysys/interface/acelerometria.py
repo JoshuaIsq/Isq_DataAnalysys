@@ -13,7 +13,6 @@ from isq_dataanalysys.processamento.integracao import integrar_relativo
 from isq_dataanalysys.interface.integracao import TelaIntegracao, mostrar_resultado
 from isq_dataanalysys.interface.passa_banda import DialogoPassaBanda
 from isq_dataanalysys import __version__ as VERSAO
-from isq_dataanalysys.leitores.metadados import ler_inicio_lynx
 from isq_dataanalysys.interface.eixo_temporal import EixoDataHora, configurar_eixo_temporal
 
 
@@ -203,7 +202,7 @@ class TelaLynxAcelerometria(Tela):
         self.sensores_lynx = sensores
         self.info_arquivo = info
         self.caminho_atual = Path(caminho)
-        self.inicio_arquivo = ler_inicio_lynx(caminho)
+        self.carregar_referencia_temporal(caminho)
         self.config_filtros = {}
         self.info_processamento = {"fs": fs, "substituicoes": {}}
         self.botao_rms.blockSignals(True)

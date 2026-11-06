@@ -24,6 +24,9 @@ Na referência temporal, `leitores/metadados.py` interpreta o horário original 
 CSV; `processamento/tempo.py` centraliza a redução fixa de três horas e a conversão
 para datas; `interface/eixo_temporal.py` formata os eixos das telas. SVG e HTML
 usam a mesma conversão, preservando os segundos usados pelos cálculos.
+`interface/referencia_temporal.py` apresenta o horário reconhecido, os detalhes da
+leitura e a definição manual; a classe base coordena a atualização dos eixos e da
+referência de exportação sem modificar os sinais.
 
 ## Mapa da reorganização
 

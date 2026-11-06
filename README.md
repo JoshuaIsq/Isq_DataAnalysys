@@ -32,6 +32,12 @@ somado ao tempo de cada amostra. Exemplo: `28/10/2026 15:55` no CSV aparece como
 `28/10/2026 12:55`. As exportações SVG e HTML seguem a mesma referência e o mesmo
 intervalo visível. A FFT continua com frequência em Hz.
 
+Após importar, o painel **Início CSV → local** confirma o horário utilizado.
+**Detalhes do horário** mostra o campo e o valor efetivamente lidos. Se o formato
+não for reconhecido, a tela avisa e oferece **Definir horário…**: informe o horário
+original do CSV; o desconto de três horas continua automático. O ajuste manual
+vale para a janela atual, suas exportações e os novos resultados gerados a partir dela.
+
 O ajuste independe do fuso do computador. Os cálculos usam os segundos originais;
 o CSV e os valores medidos são preservados. Sem uma data inicial válida, o eixo
 continua em segundos. Veja os [formatos e regras da referência temporal](docs/CSV_LYNX.md).

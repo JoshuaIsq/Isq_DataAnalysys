@@ -11,8 +11,7 @@ from PySide6.QtWidgets import (
 from isq_dataanalysys.interface.base import Tela
 from isq_dataanalysys.leitores.lynx import aviso_unidades, LinhaFinalIncompleta
 from isq_dataanalysys.leitores.extensometria import ler_lynx_extensometria
-from isq_dataanalysys.leitores.metadados import ler_inicio_lynx
-from isq_dataanalysys.interface.eixo_temporal import EixoDataHora, configurar_eixo_temporal
+from isq_dataanalysys.interface.eixo_temporal import EixoDataHora
 
 
 class TelaLynxExtensometria(Tela):
@@ -153,8 +152,7 @@ class TelaLynxExtensometria(Tela):
         self.mapa_canais = mapa
         self.info_arquivo = info
         self.caminho_atual = Path(caminho)
-        self.inicio_arquivo = ler_inicio_lynx(caminho)
-        configurar_eixo_temporal(self.grafico, self.inicio_arquivo)
+        self.carregar_referencia_temporal(caminho)
         self.config_filtros = {}
         self.info_processamento = {"fs": info["fs"], "substituicoes": {}}
         self.grafico.clear()

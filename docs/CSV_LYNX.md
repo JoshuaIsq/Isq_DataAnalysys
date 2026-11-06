@@ -93,6 +93,12 @@ A referência é o campo `StartTime UTC` ou `StartTime` do cabeçalho. O leitor 
 datas com ano primeiro (`2026/10/28`, `2026-10-28`) ou dia primeiro (`28/10/2026`,
 `28-10-2026`), seguidas de horas/minutos, segundos opcionais e frações de segundo.
 Também aceita o separador `T` de datas ISO e ponto ou vírgula nas frações.
+Variações do rótulo, como `StartTime (UTC+0):`, também são aceitas. A leitura
+permite células vazias entre rótulo e valor, data e hora em células distintas,
+valor embutido no próprio campo, separador hífen entre data e hora, aspas,
+espaços Unicode e frações com até nove casas (representadas com precisão de
+microssegundos). Anotações de fuso não mudam o relógio registrado: o ajuste
+solicitado permanece sendo a redução fixa de três horas, sem outra conversão.
 
 O horário de apresentação obedece à regra fixa da placa:
 
@@ -117,7 +123,18 @@ iniciais continuam sendo calculados em segundos, sem aplicar a redução de hora
 aos dados numéricos. O CSV não é regravado. Os campos de recorte temporal da
 extensometria continuam recebendo segundos relativos à referência inicial do CSV.
 Se a data inicial estiver ausente ou inválida, a leitura dos sinais continua e
-o eixo permanece em segundos, sem atribuir uma data presumida.
+o eixo permanece em segundos, sem atribuir uma data presumida. Essa situação
+agora aparece explicitamente no painel de referência temporal, em vez de ocorrer
+silenciosamente. **Detalhes do horário** mostra o rótulo e o valor reais, incluindo
+caracteres que podem ficar ocultos no Excel, e o motivo da falha.
+
+O botão **Definir horário…** permite informar a data/hora **original** do arquivo,
+por exemplo, `27/10/2026 14:45:00`. O painel deve então mostrar o horário local
+`27/10/2026 11:45:00`. Isso atualiza os eixos e as exportações da janela sem
+refazer filtros, alterar o zoom ou gravar o CSV. Novas janelas de velocidade e
+deslocamento recebem essa referência. Resultados que já estavam abertos mantêm
+a referência capturada quando foram criados. Cancelar ou informar uma data inválida
+preserva o estado anterior; importar outro CSV substitui a referência manual.
 
 A amostragem deve ser regular e crescente. Valores ausentes, não numéricos ou
 não finitos nos canais importados são recusados. Uma última linha incompleta
