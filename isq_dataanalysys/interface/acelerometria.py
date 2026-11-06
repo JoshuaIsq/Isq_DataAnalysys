@@ -14,34 +14,9 @@ from isq_dataanalysys.interface.integracao import TelaIntegracao, mostrar_result
 from isq_dataanalysys.interface.passa_banda import DialogoPassaBanda
 from isq_dataanalysys import __version__ as VERSAO
 from isq_dataanalysys.leitores.metadados import ler_inicio_lynx
-from datetime import timedelta
+from isq_dataanalysys.interface.eixo_temporal import EixoDataHora, configurar_eixo_temporal
 
 
-class EixoDataHora(pg.AxisItem):
-    """Eixo inferior que mostra data/hora do timestamp; os dados continuam em segundos."""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.inicio = None
-
-    def definir_inicio(self, inicio):
-        self.inicio = inicio
-        self.enableAutoSIPrefix(inicio is None)
-
-    def tickStrings(self, values, scale, spacing):
-        if self.inicio is None:
-            return super().tickStrings(values, scale, spacing)
-        subsegundo = spacing < 1
-        formato = "%d/%m/%Y %H:%M:%S" + (".%f" if subsegundo else "")
-        textos = []
-        for valor in values:
-            try:
-                texto = (self.inicio + timedelta(seconds=float(valor))).strftime(formato)
-            except (OverflowError, ValueError):
-                texto = ""
-            textos.append(texto[:-3] if subsegundo else texto)  # milissegundos
-        return textos
-    
 class TelaLynxAcelerometria(Tela):
     def __init__(self):
         super().__init__()
@@ -433,16 +408,9 @@ class TelaLynxAcelerometria(Tela):
                 color="#333333",
             )
             grafico.setLabel("left", rotulo, units=unidade)
-            usar_data = (not fft) and self.inicio_arquivo is not None
-            grafico.getAxis("bottom").definir_inicio(
-                self.inicio_arquivo if usar_data else None
-            )
+            configurar_eixo_temporal(grafico, None if fft else self.inicio_arquivo)
             if fft:
                 grafico.setLabel("bottom", "Frequência", units="Hz")
-            elif usar_data:
-                grafico.setLabel("bottom", "Data/Hora (UTC)", units="")
-            else:
-                grafico.setLabel("bottom", "Tempo", units="s")
 
         cores = ["#1565C0", "#D55E00", "#18864B", "#8E44AD"]
 

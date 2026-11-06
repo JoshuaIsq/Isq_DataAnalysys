@@ -4,6 +4,7 @@ import numpy as np
 import plotly.graph_objects as go
 import pyqtgraph as pg
 from plotly.subplots import make_subplots
+from isq_dataanalysys.processamento.tempo import ROTULO_DATA_HORA, datas_locais, inicio_do_eixo
 
 
 
@@ -30,11 +31,8 @@ def criar_figura_html(plots, inicio=None, titulo="Dados tratados", descricao="")
 
         unidade = eixo_y.labelUnits or ""
 
-        usar_data = (
-            inicio is not None
-            and (eixo_x.labelUnits == "s" or getattr(eixo_x, "inicio", None) is not None)
-            and not eixo_x.logMode
-        )
+        referencia = inicio_do_eixo(eixo_x, inicio)
+        usar_data = referencia is not None
 
         for curva in plot.listDataItems():
             if not curva.isVisible():
@@ -53,16 +51,10 @@ def criar_figura_html(plots, inicio=None, titulo="Dados tratados", descricao="")
             segundos = np.asarray(x, dtype=float)
 
             if usar_data:
-                deslocamento = np.rint(
-                    segundos * 1_000_000
-                ).astype("timedelta64[us]")
-
-                x_html = (
-                    np.datetime64(inicio, "us") + deslocamento
-                ).astype(str).tolist()
+                x_html = datas_locais(referencia, segundos).astype(str).tolist()
 
                 texto_tempo = (
-                    "Data/Hora (UTC): %{x|%d/%m/%Y %H:%M:%S.%L}"
+                    ROTULO_DATA_HORA + ": %{x|%d/%m/%Y %H:%M:%S.%L}"
                     "<br>Tempo: %{customdata:.6f} s"
                 )
 
@@ -117,12 +109,11 @@ def criar_figura_html(plots, inicio=None, titulo="Dados tratados", descricao="")
         faixa_x, faixa_y = plot.viewRange()
         figura.update_yaxes(range=faixa_y, autorange=False, row=linha, col=1)
         if usar_data:
-            faixa_x = (np.datetime64(inicio, "us") +
-                       np.rint(np.asarray(faixa_x) * 1_000_000).astype("timedelta64[us]")).astype(str).tolist()
+            faixa_x = datas_locais(referencia, faixa_x).astype(str).tolist()
 
         figura.update_xaxes(
             title_text=(
-                "Data/Hora (UTC)" if usar_data else
+                ROTULO_DATA_HORA if usar_data else
                 escape(rotulo_x + (f" ({unidade_x})" if unidade_x else ""))
             ),
             type=(
@@ -135,6 +126,8 @@ def criar_figura_html(plots, inicio=None, titulo="Dados tratados", descricao="")
             row=linha,
             col=1,
         )
+        if usar_data:
+            figura.update_xaxes(tickformat="%d/%m/%Y<br>%H:%M:%S.%L", nticks=5, row=linha, col=1)
 
     if not figura.data:
         raise ValueError(

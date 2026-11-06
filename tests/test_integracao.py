@@ -3,6 +3,8 @@ import os
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 os.environ.setdefault('MPLCONFIGDIR', '/tmp/isq-matplotlib')
 import tempfile
+from datetime import datetime
+import matplotlib.dates as mdates
 from pathlib import Path
 import unittest
 from unittest.mock import patch
@@ -289,8 +291,10 @@ class FluxoTests(ArquivoMixin, unittest.TestCase):
                 self.assertIn(unidade, fig.axes[0].get_ylabel())
                 self.assertEqual(sum(len(e.lines) for e in fig.axes), 1)
                 np.testing.assert_array_equal(fig.axes[0].lines[0].get_ydata(), janela.df_sensores[1])
-                np.testing.assert_array_equal(fig.axes[0].lines[0].get_xdata(), janela.tempo)
-                np.testing.assert_allclose(fig.axes[0].get_xlim(), [.2, .8])
+                esperados = np.datetime64('2026-10-28T09:00:00', 'us') + np.rint(janela.tempo * 1e6).astype('timedelta64[us]')
+                np.testing.assert_array_equal(fig.axes[0].lines[0].get_xdata(), esperados)
+                np.testing.assert_allclose(fig.axes[0].get_xlim(), mdates.date2num([
+                    datetime(2026, 10, 28, 9, 0, 0, 200000), datetime(2026, 10, 28, 9, 0, 0, 800000)]), rtol=0, atol=1e-10)
                 return salvar_svg(fig, *args, **kwargs)
 
             def verificar_html(fig, *args, **kwargs):
@@ -299,8 +303,8 @@ class FluxoTests(ArquivoMixin, unittest.TestCase):
                 self.assertEqual(len(fig.data), 1)
                 self.assertIn(unidade, fig.layout.yaxis.title.text)
                 np.testing.assert_array_equal(fig.data[0].y, janela.df_sensores[1])
-                self.assertEqual(fig.data[0].x[0], '2026-10-28T12:00:00.000000')
-                self.assertEqual(fig.layout.xaxis.range[0], '2026-10-28T12:00:00.200000')
+                self.assertEqual(fig.data[0].x[0], '2026-10-28T09:00:00.000000')
+                self.assertEqual(fig.layout.xaxis.range[0], '2026-10-28T09:00:00.200000')
                 return salvar_html(fig, *args, **kwargs)
 
             with patch.object(QFileDialog, 'getExistingDirectory', return_value=self.tmp.name), patch.object(QMessageBox, 'information'):

@@ -11,6 +11,8 @@ from PySide6.QtWidgets import (
 from isq_dataanalysys.interface.base import Tela
 from isq_dataanalysys.leitores.lynx import aviso_unidades, LinhaFinalIncompleta
 from isq_dataanalysys.leitores.extensometria import ler_lynx_extensometria
+from isq_dataanalysys.leitores.metadados import ler_inicio_lynx
+from isq_dataanalysys.interface.eixo_temporal import EixoDataHora, configurar_eixo_temporal
 
 
 class TelaLynxExtensometria(Tela):
@@ -31,6 +33,7 @@ class TelaLynxExtensometria(Tela):
         self.curvas_ext = {}
         self.info_arquivo = {}
         self.caminho_atual = None
+        self.inicio_arquivo = None
         self.unidade_visual = None
         self.limites_visualizacao = {}
         self.criar_checkboxes_extensometria()
@@ -41,7 +44,7 @@ class TelaLynxExtensometria(Tela):
         self.abrir.clicked.connect(self.carregar_arquivo_lynx)
 
     def criar_graficos(self, layout_direito):
-        self.grafico = pg.PlotWidget(background="w")
+        self.grafico = pg.PlotWidget(background="w", axisItems={"bottom": EixoDataHora(orientation="bottom")})
         self.grafico.setLabel("bottom", "Tempo", units="s")
         self.grafico.setLabel("left", "Medição")
         self.grafico.showGrid(x=True, y=True, alpha=0.25)
@@ -150,6 +153,8 @@ class TelaLynxExtensometria(Tela):
         self.mapa_canais = mapa
         self.info_arquivo = info
         self.caminho_atual = Path(caminho)
+        self.inicio_arquivo = ler_inicio_lynx(caminho)
+        configurar_eixo_temporal(self.grafico, self.inicio_arquivo)
         self.config_filtros = {}
         self.info_processamento = {"fs": info["fs"], "substituicoes": {}}
         self.grafico.clear()

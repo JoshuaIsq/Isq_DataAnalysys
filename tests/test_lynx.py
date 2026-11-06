@@ -11,6 +11,7 @@ os.environ.setdefault('MPLCONFIGDIR', '/tmp/isq-matplotlib')
 os.environ.setdefault('XDG_CACHE_HOME', '/tmp/isq-cache')
 
 import numpy as np
+import matplotlib.dates as mdates
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 import shiboken6
 from tests.apoio import ArquivoMixin
@@ -273,10 +274,10 @@ class InterfaceTests(ArquivoMixin, unittest.TestCase):
         fig = criar_figura_html([ext.grafico.getPlotItem()])
         self.assertEqual(len(fig.data), 1)
         self.assertEqual(list(fig.layout.yaxis.range), [-5, 10])
-        self.assertEqual(list(fig.layout.xaxis.range), [.2, .8])
+        self.assertEqual(list(fig.layout.xaxis.range), ['2026-10-28T09:00:00.200000', '2026-10-28T09:00:00.800000'])
         self.assertIn('MPa', fig.layout.yaxis.title.text)
         data = criar_figura_html([ext.grafico.getPlotItem()], inicio=datetime(2026, 1, 1))
-        self.assertEqual(data.layout.xaxis.range[0], '2026-01-01T00:00:00.200000')
+        self.assertEqual(data.layout.xaxis.range[0], '2025-12-31T21:00:00.200000')
 
     def test_limites_invalidos_nao_alteram_a_vista(self):
         ext = self.janela(TelaLynxExtensometria)
@@ -373,7 +374,8 @@ class InterfaceTests(ArquivoMixin, unittest.TestCase):
         from matplotlib.figure import Figure
         salvar = Figure.savefig
         def verificar_figura(figura, *args, **kwargs):
-            np.testing.assert_allclose(figura.axes[0].get_xlim(), [.2, .8])
+            np.testing.assert_allclose(figura.axes[0].get_xlim(), mdates.date2num([
+                datetime(2026, 10, 28, 9, 0, 0, 200000), datetime(2026, 10, 28, 9, 0, 0, 800000)]), rtol=0, atol=1e-10)
             np.testing.assert_allclose(figura.axes[0].get_ylim(), [-7, 8])
             return salvar(figura, *args, **kwargs)
         with patch.object(QFileDialog, 'getExistingDirectory', return_value=self.tmp.name), patch.object(QMessageBox, 'information'):

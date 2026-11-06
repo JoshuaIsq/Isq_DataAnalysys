@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QPushButton, QLabel, QMenu, QMessageBox, QScrollArea, QFrame,
 )
 from .exportacao import ExportacaoGraficos
+from .eixo_temporal import EixoDataHora, configurar_eixo_temporal
 from isq_dataanalysys.processamento.integracao import integrar_relativo
 from isq_dataanalysys.leitores.acelerometria import EIXOS, EIXO_DESCONHECIDO
 from isq_dataanalysys import __version__ as VERSAO
@@ -118,10 +119,11 @@ class TelaIntegracao(ExportacaoGraficos, QMainWindow):
         eixos = [e for e in EIXOS if e in presentes]
         base = None
         for linha, eixo in enumerate(eixos):
-            plot = self.grafico.addPlot(row=linha, col=0)
+            plot = self.grafico.addPlot(row=linha, col=0,
+                                       axisItems={"bottom": EixoDataHora(orientation="bottom")})
             titulo_eixo = eixo if eixo == EIXO_DESCONHECIDO else f'Eixo {eixo}'
             plot.setTitle(f'{titulo_eixo} — {nome} {referencia}', color='#333333', size='10pt')
-            plot.setLabel('bottom', 'Tempo', units='s')
+            configurar_eixo_temporal(plot, self.inicio_exportacao)
             plot.setLabel('left', nome, units=unidade)
             for lado in ('left', 'bottom'):
                 plot.getAxis(lado).enableAutoSIPrefix(False)

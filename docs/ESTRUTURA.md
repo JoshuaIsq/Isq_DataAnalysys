@@ -20,6 +20,11 @@ ficam dentro de `isq_dataanalysys/`. O código de processamento não importa a
 interface; os leitores validam os sinais e a interface coordena leitura,
 processamento e exportação.
 
+Na referência temporal, `leitores/metadados.py` interpreta o horário original do
+CSV; `processamento/tempo.py` centraliza a redução fixa de três horas e a conversão
+para datas; `interface/eixo_temporal.py` formata os eixos das telas. SVG e HTML
+usam a mesma conversão, preservando os segundos usados pelos cálculos.
+
 ## Mapa da reorganização
 
 | Arquivo anterior | Local atual |

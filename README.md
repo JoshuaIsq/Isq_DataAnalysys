@@ -24,6 +24,18 @@ python .\main.py --diagnostico
 A tela inicial também oferece **Sobre esta instalação**. A versão e o caminho
 exibidos vêm do mesmo pacote usado pelas telas e pelos cálculos.
 
+### Data e hora da medição
+
+Os gráficos temporais de acelerometria, RMS, extensometria, velocidade e
+deslocamento usam o horário inicial do CSV com **redução fixa de três horas**,
+somado ao tempo de cada amostra. Exemplo: `28/10/2026 15:55` no CSV aparece como
+`28/10/2026 12:55`. As exportações SVG e HTML seguem a mesma referência e o mesmo
+intervalo visível. A FFT continua com frequência em Hz.
+
+O ajuste independe do fuso do computador. Os cálculos usam os segundos originais;
+o CSV e os valores medidos são preservados. Sem uma data inicial válida, o eixo
+continua em segundos. Veja os [formatos e regras da referência temporal](docs/CSV_LYNX.md).
+
 ### CSVs com canais fora de ordem
 
 A acelerometria aceita sensores incompletos, eixos fora de ordem e nomes/eixos

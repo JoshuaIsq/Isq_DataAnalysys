@@ -87,6 +87,38 @@ O programa usa os valores de tensão e deformação presentes no CSV. A troca de
 modo não calcula tensão a partir de deformação: essa operação exigiria um modelo
 e propriedades do material, que não fazem parte desta importação.
 
+## Data e hora local nos gráficos e nas exportações
+
+A referência é o campo `StartTime UTC` ou `StartTime` do cabeçalho. O leitor aceita
+datas com ano primeiro (`2026/10/28`, `2026-10-28`) ou dia primeiro (`28/10/2026`,
+`28-10-2026`), seguidas de horas/minutos, segundos opcionais e frações de segundo.
+Também aceita o separador `T` de datas ISO e ponto ou vírgula nas frações.
+
+O horário de apresentação obedece à regra fixa da placa:
+
+```text
+data/hora local = data/hora inicial registrada − 3 horas + tempo da amostra em segundos
+```
+
+Assim, `28/10/2026 15:55` no CSV começa em `28/10/2026 12:55` na tela e nas
+exportações. Às `01:00` do CSV, o início local será `22:00` do dia anterior.
+O ajuste também trata mudanças de mês/ano. Ele é fixo e não depende do fuso ou
+horário de verão do computador. O rótulo **Data/Hora local (CSV − 3 h)** identifica
+essa referência, inclusive nos valores consultados no HTML.
+
+Essa apresentação é compartilhada por acelerometria, RMS, extensometria,
+velocidade e deslocamento. A FFT mantém frequência em Hz. O zoom e as escalas
+são preservados no SVG e no HTML; o HTML inclui todas as amostras selecionadas,
+com a vista inicial correspondente ao zoom. O horário é capturado na importação,
+de modo que a exportação continue coerente mesmo se o arquivo for movido ou apagado.
+
+Os vetores temporais, os filtros, as janelas RMS, as integrações e as condições
+iniciais continuam sendo calculados em segundos, sem aplicar a redução de horas
+aos dados numéricos. O CSV não é regravado. Os campos de recorte temporal da
+extensometria continuam recebendo segundos relativos à referência inicial do CSV.
+Se a data inicial estiver ausente ou inválida, a leitura dos sinais continua e
+o eixo permanece em segundos, sem atribuir uma data presumida.
+
 A amostragem deve ser regular e crescente. Valores ausentes, não numéricos ou
 não finitos nos canais importados são recusados. Uma última linha incompleta
 nesses canais pode ser ignorada mediante confirmação. Lacunas no meio do

@@ -1,3 +1,3 @@
 """ISQ DataAnalysys: análise de medições Lynx."""
 
-__version__ = "2026.11.05.2"
+__version__ = "2026.11.06.1"

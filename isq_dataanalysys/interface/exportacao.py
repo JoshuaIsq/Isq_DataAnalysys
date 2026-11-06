@@ -16,6 +16,13 @@ class ExportacaoGraficos:
             return [self.grafico.getPlotItem()]
         return [plot for plot in self.graficos_eixos.values() if plot.isVisible()]
 
+    def inicio_para_exportar(self):
+        if hasattr(self, "inicio_exportacao"):
+            return self.inicio_exportacao
+        if hasattr(self, "inicio_arquivo"):
+            return self.inicio_arquivo
+        return ler_inicio_lynx(getattr(self, "caminho_atual", None))
+
     def exportar_svg(self):
         if getattr(self, "df_sensores", None) is None:
             QMessageBox.information(
@@ -59,7 +66,8 @@ class ExportacaoGraficos:
         caminho = Path(pasta) / nome
 
         try:
-            salvar_svg(plots, caminho, descricao=getattr(self, "descricao_exportacao", ""), titulo=self.windowTitle())
+            salvar_svg(plots, caminho, descricao=getattr(self, "descricao_exportacao", ""),
+                       titulo=self.windowTitle(), inicio=self.inicio_para_exportar())
         except Exception as erro:
             QMessageBox.warning(self, "Falha ao exportar SVG", str(erro))
             return
@@ -106,14 +114,9 @@ class ExportacaoGraficos:
         caminho = Path(pasta) / nome
 
         try:
-            if hasattr(self, "inicio_exportacao"):
-                inicio = self.inicio_exportacao
-            else:
-                inicio = ler_inicio_lynx(getattr(self, "caminho_atual", None))
-
             figura = criar_figura_html(
                 plots,
-                inicio=inicio,
+                inicio=self.inicio_para_exportar(),
                 titulo=self.windowTitle(),
                 descricao=getattr(self, "descricao_exportacao", ""),
             )

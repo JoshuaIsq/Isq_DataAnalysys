@@ -1,11 +1,12 @@
 """Metadados temporais dos CSVs Lynx."""
 import csv
 from datetime import datetime
+import re
 from .codificacao import detectar_codificacao_csv
 
 
 def ler_inicio_lynx(caminho):
-    """Lê o início da gravação em UTC, quando disponível."""
+    """Lê a data/hora original do cabeçalho, sem aplicar o ajuste de exibição."""
     if not caminho:
         return None
 
@@ -20,17 +21,15 @@ def ler_inicio_lynx(caminho):
                 linha = next(leitor, [])
 
                 for indice, texto in enumerate(linha[:-1]):
-                    if "starttime utc" in texto.lower():
-                        valor = linha[indice + 1].strip()
-
-                        for formato in (
-                            "%Y/%m/%d %H:%M:%S",
-                            "%Y/%m/%d %H:%M:%S.%f",
-                        ):
-                            try:
-                                return datetime.strptime(valor, formato)
-                            except ValueError:
-                                continue
+                    etiqueta = re.sub(r"[\W_]+", "", texto).casefold()
+                    if etiqueta in ("starttime", "starttimeutc"):
+                        valor = linha[indice + 1].strip().replace("T", " ").replace(",", ".")
+                        for data in ("%Y/%m/%d", "%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"):
+                            for hora in ("%H:%M:%S.%f", "%H:%M:%S", "%H:%M"):
+                                try:
+                                    return datetime.strptime(valor, data + " " + hora)
+                                except ValueError:
+                                    continue
 
     except (OSError, UnicodeError):
         pass
