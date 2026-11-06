@@ -15,7 +15,7 @@ class LinhaFinalIncompleta(ValueError):
 def normalizar_unidade(unidade):
     texto = "".join(unidade.split()).casefold().replace("µ", "μ")
     return {"mpa": "MPa", "μm/m": "μm/m", "um/m": "μm/m",
-            "mm/m": "mm/m", "g": "g"}.get(texto, unidade.strip())
+            "mm/m": "mm/m", "g": "g", "mm": "mm"}.get(texto, unidade.strip())
 
 
 def descrever_canais(canais):
@@ -34,7 +34,8 @@ def aviso_unidades(info, modalidade):
         "pois possuem outra unidade de medida:\n"
         + descrever_canais(info["ignorados"])
         + "\n\nConfira o CSV e abra os canais na opção correspondente à sua medição. "
-        "Canais em mm representam deslocamento e não pertencem a estas duas análises."
+        "Use Lynx → Régua potenciométrica para canais de deslocamento em mm; "
+        "Acelerometria para g; Extensometria para MPa, μm/m ou mm/m."
     )
 
 

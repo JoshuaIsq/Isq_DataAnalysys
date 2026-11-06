@@ -1,10 +1,9 @@
 from pathlib import Path
 from isq_dataanalysys import __version__
 
-import numpy as np
 import pyqtgraph as pg
 from PySide6.QtWidgets import (
-    QButtonGroup, QCheckBox, QComboBox, QDoubleSpinBox, QFileDialog,
+    QButtonGroup, QCheckBox, QComboBox, QFileDialog,
     QHBoxLayout, QLabel, QMessageBox, QPushButton,
 )
 
@@ -12,9 +11,10 @@ from isq_dataanalysys.interface.base import Tela
 from isq_dataanalysys.leitores.lynx import aviso_unidades, LinhaFinalIncompleta
 from isq_dataanalysys.leitores.extensometria import ler_lynx_extensometria
 from isq_dataanalysys.interface.eixo_temporal import EixoDataHora
+from .visualizacao_temporal import VisualizacaoTemporal
 
 
-class TelaLynxExtensometria(Tela):
+class TelaLynxExtensometria(VisualizacaoTemporal, Tela):
     CORES = [
         "#1565C0", "#D55E00", "#18864B", "#8E44AD",
         "#A6761D", "#444444", "#009E73", "#E69F00",
@@ -92,35 +92,7 @@ class TelaLynxExtensometria(Tela):
         modos.addStretch()
         self.layout_controles.addLayout(modos, 4, 0, 1, 4)
 
-        self.campo_y_min = self.campo_limite()
-        self.campo_y_max = self.campo_limite()
-        self.campo_tempo_inicio = self.campo_limite(" s")
-        self.campo_tempo_fim = self.campo_limite(" s")
-        linha = QHBoxLayout()
-        for texto, campo in (("Escala mínima:", self.campo_y_min), ("máxima:", self.campo_y_max),
-                             ("Tempo inicial:", self.campo_tempo_inicio), ("final:", self.campo_tempo_fim)):
-            linha.addWidget(QLabel(texto))
-            linha.addWidget(campo)
-        self.layout_controles.addLayout(linha, 5, 0, 1, 4)
-        botoes = QHBoxLayout()
-        self.botao_aplicar_visualizacao = QPushButton("Aplicar escala e tempo")
-        self.botao_ajustar = QPushButton("Ajustar aos dados")
-        self.botao_aplicar_visualizacao.clicked.connect(self.aplicar_visualizacao)
-        self.botao_ajustar.clicked.connect(self.ajustar_aos_dados)
-        for botao in (self.botao_aplicar_visualizacao, self.botao_ajustar):
-            botao.setEnabled(False)
-            botoes.addWidget(botao)
-        botoes.addStretch()
-        self.layout_controles.addLayout(botoes, 6, 0, 1, 4)
-
-    @staticmethod
-    def campo_limite(sufixo=""):
-        campo = QDoubleSpinBox()
-        campo.setDecimals(9)
-        campo.setRange(-1e100, 1e100)
-        campo.setSuffix(sufixo)
-        campo.setEnabled(False)
-        return campo
+        self.criar_limites_visualizacao()
 
     def carregar_arquivo_lynx(self):
         caminho, _ = QFileDialog.getOpenFileName(
@@ -165,12 +137,7 @@ class TelaLynxExtensometria(Tela):
         self.unidade_deformacao.setCurrentText("μm/m" if "μm/m" in unidades else "mm/m")
         self.unidade_deformacao.blockSignals(False)
         (self.botao_tensao if "MPa" in unidades else self.botao_deformacao).setChecked(True)
-        for campo in (self.campo_y_min, self.campo_y_max, self.campo_tempo_inicio, self.campo_tempo_fim):
-            campo.setEnabled(True)
-        for campo in (self.campo_tempo_inicio, self.campo_tempo_fim):
-            campo.setRange(float(tempo[0]), float(tempo[-1]))
-        self.botao_aplicar_visualizacao.setEnabled(True)
-        self.botao_ajustar.setEnabled(True)
+        self.habilitar_limites_visualizacao()
         self.unidade_visual = None
         self.limites_visualizacao.clear()
         mensagens = info["avisos"] + [f"Canal {n} *: {aviso}." for n, aviso in info["qualidade"].items()]
@@ -244,32 +211,6 @@ class TelaLynxExtensometria(Tela):
                 f"{selecionados} selecionados neste modo | {self.unidade_visual}"
             )
 
-    def definir_limites(self, tempo, escala):
-        for campo, valor in zip((self.campo_tempo_inicio, self.campo_tempo_fim, self.campo_y_min, self.campo_y_max),
-                                (*tempo, *escala)):
-            campo.setValue(float(valor))
-        self.grafico.setRange(xRange=tempo, yRange=escala, padding=0, disableAutoRange=True)
-        self.limites_visualizacao[self.unidade_visual] = [list(tempo), list(escala)]
-
-    def aplicar_visualizacao(self):
-        if self.df_sensores is None:
-            return
-        tempo = [self.campo_tempo_inicio.value(), self.campo_tempo_fim.value()]
-        escala = [self.campo_y_min.value(), self.campo_y_max.value()]
-        if tempo[0] >= tempo[1] or escala[0] >= escala[1]:
-            QMessageBox.warning(self, "Limites inválidos", "O início deve ser menor que o fim e a escala mínima deve ser menor que a máxima.")
-            return False
-        self.definir_limites(tempo, escala)
-        return True
-
-    def ajustar_aos_dados(self):
-        if self.df_sensores is None:
-            return
-        series = [self.valores_visuais(n) for n in self.mapa_canais
-                  if self.canal_no_modo(n) and self.checkboxes_canais[n].isChecked()]
-        if not series:
-            return
-        minimo = min(float(np.min(v)) for v in series)
-        maximo = max(float(np.max(v)) for v in series)
-        margem = max((maximo - minimo) * 0.05, abs(maximo) * 1e-6, 1e-9)
-        self.definir_limites([float(self.tempo[0]), float(self.tempo[-1])], [minimo - margem, maximo + margem])
+    def series_para_ajuste(self):
+        return [self.valores_visuais(n) for n in self.mapa_canais
+                if self.canal_no_modo(n) and self.checkboxes_canais[n].isChecked()]

@@ -21,10 +21,13 @@ Campos de metadados, como `SampFreq:`, podem aparecer após os canais.
 | Extensometria: Tensão | `MPa` |
 | Extensometria: Deformação | `μm/m`, `µm/m`, `um/m`, `mm/m` |
 | Acelerometria | `g` ou `G` |
+| Régua potenciométrica | `mm` |
 
 As grafias de microdeformação são normalizadas para `μm/m`. A capitalização e
-espaços das unidades reconhecidas são normalizados. `mm` indica deslocamento,
-e fica fora das duas análises, assim como unidades ausentes ou desconhecidas.
+espaços das unidades reconhecidas são normalizados. `mm` indica deslocamento
+medido e é importado na opção **Régua potenciométrica**. `mm/m` continua sendo
+deformação, importada pela extensometria. Unidades ausentes ou desconhecidas
+ficam fora dessas análises.
 
 Ao importar um arquivo com outras unidades, um aviso lista os canais ignorados
 com posição, nome e unidade. Eles não entram nos gráficos, filtros, FFT ou RMS
@@ -113,7 +116,7 @@ horário de verão do computador. O rótulo **Data/Hora local (CSV − 3 h)** id
 essa referência, inclusive nos valores consultados no HTML.
 
 Essa apresentação é compartilhada por acelerometria, RMS, extensometria,
-velocidade e deslocamento. A FFT mantém frequência em Hz. O zoom e as escalas
+régua potenciométrica, velocidade e deslocamento integrado. A FFT mantém frequência em Hz. O zoom e as escalas
 são preservados no SVG e no HTML; o HTML inclui todas as amostras selecionadas,
 com a vista inicial correspondente ao zoom. O horário é capturado na importação,
 de modo que a exportação continue coerente mesmo se o arquivo for movido ou apagado.
@@ -121,7 +124,7 @@ de modo que a exportação continue coerente mesmo se o arquivo for movido ou ap
 Os vetores temporais, os filtros, as janelas RMS, as integrações e as condições
 iniciais continuam sendo calculados em segundos, sem aplicar a redução de horas
 aos dados numéricos. O CSV não é regravado. Os campos de recorte temporal da
-extensometria continuam recebendo segundos relativos à referência inicial do CSV.
+extensometria e da régua continuam recebendo segundos relativos à referência inicial do CSV.
 Se a data inicial estiver ausente ou inválida, a leitura dos sinais continua e
 o eixo permanece em segundos, sem atribuir uma data presumida. Essa situação
 agora aparece explicitamente no painel de referência temporal, em vez de ocorrer

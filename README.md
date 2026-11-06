@@ -1,6 +1,6 @@
 # ISQ DataAnalysys
 
-Análise de CSVs Lynx de acelerometria e extensometria. A aplicação mantém as
+Análise de CSVs Lynx de acelerometria, extensometria e régua potenciométrica. A aplicação mantém as
 correções de CSV/codificação, filtros, FFT/RMS, integrações temporais e exportações
 SVG/HTML.
 
@@ -12,7 +12,7 @@ Na raiz deste repositório, com o interpretador que contém as dependências:
 python .\main.py
 ```
 
-Escolha **Lynx → Acelerometria** ou **Lynx → Extensometria**. Acelerometria mantém
+Escolha **Lynx → Acelerometria**, **Extensometria** ou **Régua potenciométrica**. Acelerometria mantém
 **Gerar velocidade** na faixa azul e **Gerar deslocamento** na janela de velocidade.
 
 Para identificar a instalação aberta:
@@ -26,7 +26,7 @@ exibidos vêm do mesmo pacote usado pelas telas e pelos cálculos.
 
 ### Data e hora da medição
 
-Os gráficos temporais de acelerometria, RMS, extensometria, velocidade e
+Os gráficos temporais de acelerometria, RMS, extensometria, régua, velocidade e
 deslocamento usam o horário inicial do CSV com **redução fixa de três horas**,
 somado ao tempo de cada amostra. Exemplo: `28/10/2026 15:55` no CSV aparece como
 `28/10/2026 12:55`. As exportações SVG e HTML seguem a mesma referência e o mesmo
@@ -54,6 +54,20 @@ pela posição da coluna. Os avisos da importação ficam disponíveis na tela.
 Arquivos legados sem indicação de nenhum eixo e com trios completos mantêm
 X/Y/Z por posição, com indicação explícita de que os eixos foram inferidos.
 Consulte as [regras de identificação dos canais](docs/CSV_LYNX.md).
+
+### Régua potenciométrica
+
+Abra **Lynx → Régua potenciométrica** para importar os canais cuja unidade é `mm`.
+A janela aceita um ou vários canais em qualquer posição do CSV, inclusive junto
+de canais em `g`, `MPa`, `μm/m` e `mm/m`, que permanecem nas respectivas análises.
+Nomes repetidos e posições originais são preservados, como o canal 16 de um CSV misto.
+
+O gráfico apresenta o deslocamento medido em mm, inclusive valores negativos,
+com seleção de canais, calibração, offset, remoção de outliers, passa-alta,
+passa-baixa e média móvel. A janela também permite ajustar escala/intervalo,
+restaurar o original e exportar SVG/HTML com a referência de data/hora local.
+O valor inicial é preservado; o Offset só é aplicado quando solicitado.
+Veja o [guia da régua potenciométrica](docs/REGUA_POTENCIOMETRICA.md).
 
 ### Passa-banda na acelerometria
 
@@ -162,4 +176,5 @@ pelo `main.py`, isolamento de módulos antigos e preservação de dados na conso
 - [Responsabilidade de cada pasta e mapa dos arquivos movidos](docs/ESTRUTURA.md)
 - [Migração da pasta atual e arquivamento das cópias](docs/MIGRACAO.md)
 - [Importação de CSV Lynx](docs/CSV_LYNX.md)
+- [Régua potenciométrica e deslocamento medido em mm](docs/REGUA_POTENCIOMETRICA.md)
 - [Velocidade e deslocamento relativos](docs/INTEGRACAO_ACELEROMETRIA.md)

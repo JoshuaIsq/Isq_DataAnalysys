@@ -9,6 +9,7 @@ from isq_dataanalysys import __version__
 from isq_dataanalysys.aplicacao import diagnostico
 from .acelerometria import TelaLynxAcelerometria
 from .extensometria import TelaLynxExtensometria
+from .regua import TelaLynxReguaPotenciometrica
 
 
 class TelaInicial(QWidget):
@@ -20,6 +21,7 @@ class TelaInicial(QWidget):
         self.setStyleSheet('''QWidget#tela_inicial {background-color: #FFFFFF;}''')
         self.janela_acelerometria = None
         self.janela_extensometria = None
+        self.janela_regua = None
         layout = QVBoxLayout(self)
         layout.setContentsMargins(30, 25, 30, 25)
         layout.setSpacing(15)
@@ -38,6 +40,7 @@ class TelaInicial(QWidget):
         menu = QMenu(self.botao_lynx)
         menu.addAction('Extensometria').triggered.connect(self.abrir_extensometria)
         menu.addAction('Acelerometria').triggered.connect(self.abrir_acelerometria)
+        menu.addAction('Régua potenciométrica').triggered.connect(self.abrir_regua)
         self.botao_lynx.setMenu(menu)
         layout.addWidget(self.botao_lynx)
         layout.addStretch(1)
@@ -51,6 +54,11 @@ class TelaInicial(QWidget):
         if self.janela_extensometria is None:
             self.janela_extensometria = TelaLynxExtensometria()
         self.exibir(self.janela_extensometria)
+
+    def abrir_regua(self):
+        if self.janela_regua is None:
+            self.janela_regua = TelaLynxReguaPotenciometrica()
+        self.exibir(self.janela_regua)
 
     @staticmethod
     def exibir(janela):

@@ -33,6 +33,13 @@ def executar(app):
             ext.close()
             extensometria.trigger()
             assert principal.janela_extensometria is ext and ext.isVisible()
+            regua_acao = next(a for a in lynx.menu().actions() if a.text() == 'Régua potenciométrica')
+            regua_acao.trigger()
+            regua = principal.janela_regua
+            assert regua.isVisible() and VERSAO in regua.windowTitle()
+            regua.close()
+            regua_acao.trigger()
+            assert principal.janela_regua is regua and regua.isVisible()
             acao = next(a for a in lynx.menu().actions() if a.text() == 'Acelerometria')
             acao.trigger()
             acm = next(w for w in app.topLevelWidgets() if isinstance(w, TelaLynxAcelerometria))
@@ -68,6 +75,18 @@ def executar(app):
                 assert vel.graficos_eixos['X'].getAxis('left').labelUnits == 'mm/s'
                 assert desp.graficos_eixos['X'].getAxis('left').labelUnits == 'mm'
                 assert acm.graficos_eixos['X'].getAxis('left').labelUnits == 'g'
+                regua_path = Path(pasta) / 'regua.csv'
+                with regua_path.open('w', encoding='utf-8-sig', newline='') as arquivo:
+                    linhas = csv.writer(arquivo, delimiter=';')
+                    linhas.writerows([['Name', 'Régua A', 'Régua B'], ['Unit', 'mm', 'mm'],
+                                      ['HighLim', '106', '106'], ['LowLim', '-195', '-195'], ['Time (s)']])
+                    for i in range(500):
+                        linhas.writerow([i/200, -7.11, i/100])
+                assert regua.importar_caminho(regua_path)
+                app.processEvents()
+                assert regua.grafico.getAxis('left').labelUnits == 'mm'
+                assert len(regua.curvas_regua) == 2
+                assert regua.curvas_regua[1].getOriginalDataset()[1][0] == -7.11
             print('ARRANQUE_OK ' + VERSAO)
             sucesso = True
         except BaseException:

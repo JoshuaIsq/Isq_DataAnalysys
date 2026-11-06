@@ -28,6 +28,12 @@ usam a mesma conversão, preservando os segundos usados pelos cálculos.
 leitura e a definição manual; a classe base coordena a atualização dos eixos e da
 referência de exportação sem modificar os sinais.
 
+Na régua potenciométrica, `leitores/regua.py` seleciona os canais em `mm` e
+`interface/regua.py` apresenta os deslocamentos medidos. Os filtros continuam no
+processamento comum. `interface/visualizacao_temporal.py` compartilha os controles
+de escala e intervalo entre régua e extensometria, preservando o funcionamento
+dos modos de tensão/deformação.
+
 ## Mapa da reorganização
 
 | Arquivo anterior | Local atual |
