@@ -14,8 +14,12 @@ class VisualizacaoTemporal:
         linha = QHBoxLayout()
         for texto, campo in (("Escala mínima:", self.campo_y_min), ("máxima:", self.campo_y_max),
                              ("Tempo inicial:", self.campo_tempo_inicio), ("final:", self.campo_tempo_fim)):
-            linha.addWidget(QLabel(texto))
+            rotulo = QLabel(texto)
+            rotulo.setFixedWidth(rotulo.sizeHint().width())
+            linha.addWidget(rotulo)
             linha.addWidget(campo)
+            linha.setSpacing(12)
+        linha.addStretch(1)
         self.layout_controles.addLayout(linha, linha_inicial, 0, 1, 4)
         botoes = QHBoxLayout()
         self.botao_aplicar_visualizacao = QPushButton("Aplicar escala e tempo")
@@ -31,9 +35,10 @@ class VisualizacaoTemporal:
     @staticmethod
     def campo_limite(sufixo=""):
         campo = QDoubleSpinBox()
-        campo.setDecimals(9)
+        campo.setDecimals(2)
         campo.setRange(-1e100, 1e100)
         campo.setSuffix(sufixo)
+        campo.setFixedWidth(120) 
         campo.setEnabled(False)
         return campo
 
