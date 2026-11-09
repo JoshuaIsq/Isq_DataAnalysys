@@ -96,14 +96,18 @@ O filtro tem fase zero e pode apresentar transientes no início e no fim do sina
 
 ### Integral do sinal tratado
 
-Na revisão **2026.11.09.1**, **Gerar velocidade** integra diretamente a aceleração
-tratada em g para mm/s. **Gerar deslocamento** integra a velocidade exibida para
-mm. As duas etapas usam trapézios, condições iniciais zero e **não removem retas,
-parábolas nem médias automaticamente**. O método e os tratamentos da origem
-constam nas janelas e nas exportações SVG/HTML.
+Na revisão **2026.11.09.2**, **Retirar média da aceleração** vem marcada por
+padrão. **Gerar velocidade** subtrai somente a média aritmética de cada canal
+temporal tratado, após os filtros, em uma cópia; depois integra de g para mm/s.
+Desmarque a opção para integrar sem retirar essa média. A janela de aceleração
+é preservada. **Gerar deslocamento** integra a velocidade exibida para mm,
+**sem retirar a média da velocidade**. Não há ajuste de reta ou parábola.
+As duas etapas usam trapézios e condições iniciais zero. O método, os valores
+das médias removidas e os tratamentos constam nas janelas e nos SVG/HTML.
 
-Isso preserva também a deriva presente nas integrais; resultados podem ser
-maiores que nas versões com compensação automática. Fidelidade às amostras
+Retirar a média da aceleração não garante eliminar toda deriva ou zerar o
+deslocamento final. Resultados podem ser maiores que nas versões com ajustes
+polinomiais. Fidelidade às amostras
 tratadas não garante exatidão do movimento físico: filtros, discretização,
 transientes, erro do sensor e condições iniciais influenciam o resultado.
 Veja as [garantias, limites e exemplos de deriva](docs/INTEGRACAO_ACELEROMETRIA.md).

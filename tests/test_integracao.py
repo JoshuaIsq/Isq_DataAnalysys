@@ -15,7 +15,7 @@ import shiboken6
 from PySide6.QtCore import QCoreApplication, QEvent, QPoint, Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
-from isq_dataanalysys.processamento.integracao import integrar_relativo
+from isq_dataanalysys.processamento.integracao import integrar_relativo, retirar_media_aceleracao
 from isq_dataanalysys.interface.acelerometria import TelaLynxAcelerometria
 from isq_dataanalysys.exportacao.html import criar_figura_html
 from isq_dataanalysys import __version__ as VERSAO
@@ -33,7 +33,60 @@ def integral_referencia(tempo, valores):
     return np.asarray(saida, dtype=float)
 
 
+def texto_exportacao(caminho):
+    conteudo = caminho.read_text()
+    if caminho.suffix == '.svg':
+        return conteudo
+    # Plotly usa escapes JSON válidos para acentos no documento HTML.
+    trecho = conteudo[conteudo.rfind('Plotly.newPlot(')+len('Plotly.newPlot('):]
+    decoder = json.JSONDecoder()
+    valores = []
+    for _ in range(3):
+        valor, fim = decoder.raw_decode(trecho.lstrip())
+        valores.append(valor)
+        trecho = trecho.lstrip()[fim:].lstrip().lstrip(',').lstrip()
+    return valores[2]['title']['text']
+
+
 class CalculoTests(unittest.TestCase):
+    def test_retira_somente_media_por_canal_e_preserva_entrada(self):
+        t = np.array([10,10.5,11,11.5])
+        dados = pd.DataFrame({4: [1.,2.,6.,8.], 9: [10.,20.,60.,80.]}, index=[20,21,22,23])
+        copia = dados.copy(deep=True)
+        a, medias = retirar_media_aceleracao(t, dados)
+        np.testing.assert_array_equal(medias, [4.25,42.5])
+        np.testing.assert_array_equal(a[4], [-3.25,-2.25,1.75,3.75])
+        np.testing.assert_array_equal(a[9], 10*a[4])
+        np.testing.assert_allclose(a.mean(), 0, atol=1e-14)
+        pd.testing.assert_frame_equal(a.add(medias, axis='columns'), copia)
+        pd.testing.assert_frame_equal(dados, copia)
+        self.assertFalse(np.shares_memory(a.to_numpy(), dados.to_numpy()))
+        # A inclinação permanece. A velocidade não é recentrada, nem o final imposto em zero.
+        v = integrar_relativo(t, a, 'aceleracao')
+        d = integrar_relativo(t, v, 'velocidade')
+        np.testing.assert_allclose(v[4], 9806.65*np.array([0,-1.375,-1.5,-.125]), atol=1e-10)
+        np.testing.assert_allclose(d[4], 9806.65*np.array([0,-.34375,-1.0625,-1.46875]), atol=1e-10)
+        self.assertNotEqual(v[4].mean(), 0)
+        self.assertNotEqual(d.iloc[-1,0], 0)
+
+    def test_media_constante_removida_e_rampa_preservada(self):
+        t = np.arange(1001)/200
+        dados = pd.DataFrame({1: np.full(len(t), .03), 5: .1+.001*t})
+        a, medias = retirar_media_aceleracao(t, dados)
+        np.testing.assert_allclose(medias, [.03,.1025], atol=1e-14)
+        np.testing.assert_allclose(a[1], 0, atol=1e-14)
+        np.testing.assert_allclose(a[5], .001*(t-2.5), atol=1e-14)
+        self.assertGreater(a[5].std(), 0)
+
+    def test_media_rejeita_entradas_invalidas_e_overflow(self):
+        for tempo, dados in [([0], pd.DataFrame({1:[1.]})),
+                             ([0,1,3], pd.DataFrame({1:[1.,2.,3.]})),
+                             ([0,1], pd.DataFrame({1:[1.,np.nan]}))]:
+            with self.assertRaises(ValueError):
+                retirar_media_aceleracao(tempo, dados)
+        with self.assertRaisesRegex(ValueError, 'Não foi possível retirar a média'):
+            retirar_media_aceleracao([0,1], pd.DataFrame({1:[1e308,1e308]}))
+
     def test_constante_unidades_condicoes_iniciais_e_preservacao(self):
         t = np.arange(12001)/200
         dados = pd.DataFrame({4: np.full(len(t), 1e-6), 9: np.full(len(t), -2e-6)},
@@ -166,7 +219,9 @@ class FluxoTests(ArquivoMixin, unittest.TestCase):
             self.assertTrue(acm.isVisible())
             self.assertTrue(vel.isVisible())
             self.assertEqual(list(vel.df_sensores), [1, 3])
-            pd.testing.assert_frame_equal(vel.df_sensores, integrar_relativo(acm.tempo, original[[1, 3]], 'aceleracao'))
+            entrada = original[[1,3]].subtract(original[[1,3]].mean(), axis='columns')
+            np.testing.assert_allclose(vel.df_sensores, integral_referencia(acm.tempo, entrada.to_numpy()*9806.65), atol=1e-9)
+            self.assertEqual(set(vel.medias_aceleracao), {1,3})
             self.assertFalse(np.shares_memory(acm.tempo, vel.tempo))
             vel.checkboxes_canais[3].setChecked(False)
             vel.botao_deslocamento.click()
@@ -212,6 +267,7 @@ class FluxoTests(ArquivoMixin, unittest.TestCase):
 
     def test_passa_banda_integracao_fiel_e_metodo_nas_exportacoes(self):
         acm = self.janela_aceleracao(3)
+        acm.checkbox_media_aceleracao.setChecked(False)
         acm.aplicar_configuracao({'passa_banda': (1,30)})
         origem = acm.df_sensores.copy(deep=True)
         tratamentos = acm.rotulo_ativos.text()
@@ -227,7 +283,8 @@ class FluxoTests(ArquivoMixin, unittest.TestCase):
         for janela in (vel, disp):
             self.assertEqual(janela.tratamentos_origem, tratamentos)
             self.assertIn('Passa-banda: 1–30 Hz', janela.descricao_exportacao)
-            self.assertIn('Sem remoção automática de tendências', janela.descricao_exportacao)
+            self.assertIsNone(janela.medias_aceleracao)
+            self.assertIn('Sem retirada da média da aceleração', janela.descricao_exportacao)
             self.assertNotIn('remover ajuste', janela.descricao_exportacao)
             figura = criar_figura_html(janela.plots_para_exportar(), descricao=janela.descricao_exportacao)
             for curva, canal in zip(figura.data, janela.df_sensores):
@@ -240,21 +297,55 @@ class FluxoTests(ArquivoMixin, unittest.TestCase):
                 for extensao in ('svg','html'):
                     arquivos = list(Path(pasta).glob(f'*.{extensao}'))
                     self.assertEqual(len(arquivos), 1)
-                    conteudo = arquivos[0].read_text()
-                    if extensao == 'html':
-                        # O HTML serializa os acentos em escapes JSON válidos.
-                        trecho = conteudo[conteudo.rfind('Plotly.newPlot(')+len('Plotly.newPlot('):]
-                        decoder = json.JSONDecoder()
-                        valores = []
-                        for _ in range(3):
-                            valor, fim = decoder.raw_decode(trecho.lstrip())
-                            valores.append(valor)
-                            trecho = trecho.lstrip()[fim:].lstrip().lstrip(',').lstrip()
-                        conteudo = valores[2]['title']['text']
+                    conteudo = texto_exportacao(arquivos[0])
                     self.assertTrue('trapézios' in conteudo, 'Método ausente na exportação')
-                    self.assertTrue('Sem remoção automática de tendências' in conteudo,
+                    self.assertTrue('Sem retirada da média da aceleração' in conteudo,
                                     'Referência da integral ausente na exportação')
                     self.assertTrue('1–30 Hz' in conteudo, 'Cortes do filtro ausentes na exportação')
+        self.aviso.assert_not_called()
+
+    def test_media_so_aceleracao_por_padrao_origem_independente_e_exportacoes(self):
+        acm = self.janela_aceleracao(3)
+        self.assertTrue(acm.checkbox_media_aceleracao.isChecked())
+        acm.aplicar_configuracao({'passa_banda': (1,30)})
+        origem = acm.df_sensores.copy(deep=True)
+        curvas = {c: np.array(v.getOriginalDataset()[1],copy=True) for c,v in acm.curvas_lynx.items()}
+        medias = origem.mean()
+        entrada = origem.subtract(medias, axis='columns')
+        esperado_v = integral_referencia(acm.tempo, entrada.to_numpy()*9806.65)
+        vel = acm.gerar_velocidade()
+        self.janelas.append(vel)
+        np.testing.assert_allclose(vel.df_sensores, esperado_v, atol=1e-9)
+        for c in medias.index:
+            self.assertAlmostEqual(vel.medias_aceleracao[c], medias[c], places=12)
+        pd.testing.assert_frame_equal(acm.df_sensores, origem)
+        for c,curva in acm.curvas_lynx.items():
+            np.testing.assert_array_equal(curva.getOriginalDataset()[1],curvas[c])
+        # Configuração e médias permanecem no resultado já gerado.
+        acm.checkbox_media_aceleracao.setChecked(False)
+        acm.restaurar_original()
+        vel.checkboxes_canais[3].setChecked(False)
+        disp = vel.gerar_deslocamento()
+        self.janelas.append(disp)
+        np.testing.assert_allclose(disp.df_sensores,
+                                   integral_referencia(vel.tempo, esperado_v[:,:2]), atol=1e-9)
+        self.assertEqual(set(disp.medias_aceleracao), {1,2})
+        self.assertTrue((vel.df_sensores.iloc[0] == 0).all())
+        self.assertTrue((disp.df_sensores.iloc[0] == 0).all())
+        self.assertIn('sem retirar sua média',disp.descricao_exportacao)
+        for janela in (vel,disp):
+            with tempfile.TemporaryDirectory() as pasta:
+                with patch.object(QFileDialog,'getExistingDirectory',return_value=pasta), \
+                        patch.object(QMessageBox,'information'):
+                    janela.exportar_svg()
+                    janela.exportar_html()
+                for extensao in ('svg','html'):
+                    arquivos = list(Path(pasta).glob(f'*.{extensao}'))
+                    self.assertEqual(len(arquivos),1)
+                    texto = texto_exportacao(arquivos[0])
+                    for esperado in ('Média aritmética retirada somente da aceleração',
+                                     'Valores em g', 'Canal 1:', 'Passa-banda: 1–30 Hz'):
+                        self.assertTrue(esperado in texto, f'Metadado ausente: {esperado}')
         self.aviso.assert_not_called()
 
     def test_sem_canais_nao_abre_janela(self):

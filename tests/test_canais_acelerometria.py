@@ -216,7 +216,8 @@ class InterfaceCanaisTests(ArquivoMixin, unittest.TestCase):
         vel = acm.janelas_resultados[-1]
         self.janelas.append(vel)
         self.assertEqual(list(vel.df_sensores), [1, 2, 3, 4, 5, 6, 14, 15])
-        pd.testing.assert_frame_equal(vel.df_sensores, integrar_relativo(acm.tempo, acm.df_sensores, "aceleracao"))
+        entrada = acm.df_sensores.subtract(acm.df_sensores.mean(), axis='columns')
+        np.testing.assert_allclose(vel.df_sensores, integrar_relativo(acm.tempo, entrada, "aceleracao"), atol=1e-9)
         self.assertEqual(vel.canais[14][0], "Y")
         self.assertEqual(vel.canais[15][0], "Y")
         vel.botao_deslocamento.click()

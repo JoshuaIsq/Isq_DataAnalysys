@@ -9,7 +9,7 @@ from isq_dataanalysys.leitores.acelerometria import (
 )
 from isq_dataanalysys.leitores.lynx import LinhaFinalIncompleta, aviso_unidades
 from isq_dataanalysys.processamento.sinais import Processamento
-from isq_dataanalysys.processamento.integracao import integrar_relativo
+from isq_dataanalysys.processamento.integracao import integrar_relativo, retirar_media_aceleracao
 from isq_dataanalysys.interface.integracao import TelaIntegracao, mostrar_resultado
 from isq_dataanalysys.interface.passa_banda import DialogoPassaBanda
 from isq_dataanalysys import __version__ as VERSAO
@@ -119,20 +119,36 @@ class TelaLynxAcelerometria(Tela):
             "QPushButton:hover {background: #0d47a1;}"
             "QPushButton:disabled {background: #d4dce5; color: #536170;}"
         )
-        self.botao_velocidade.setToolTip(
-            "Abre outra janela em mm/s. Integra a aceleração tratada, sem remover tendências, "
-            "em todo o intervalo temporal, mesmo quando FFT ou RMS está visível."
-        )
         linha.addWidget(self.botao_velocidade)
-        descricao = QLabel(
-            "Integral do sinal tratado → mm/s · sem remover tendências · velocidade inicial zero\n"
-            "Abre uma nova janela; resultado relativo ao início do intervalo."
+        self.checkbox_media_aceleracao = QCheckBox("Retirar média da aceleração")
+        self.checkbox_media_aceleracao.setObjectName("retirar_media_aceleracao")
+        self.checkbox_media_aceleracao.setChecked(True)
+        self.checkbox_media_aceleracao.setToolTip(
+            "Antes de gerar velocidade, subtrai somente a média aritmética de cada canal "
+            "da aceleração tratada, usando todo o intervalo carregado. "
+            "Preserva a origem. Não retira média da velocidade nem ajusta retas ou parábolas."
         )
-        descricao.setWordWrap(True)
-        descricao.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
-        linha.addWidget(descricao, 1)
+        linha.addWidget(self.checkbox_media_aceleracao)
+        self.rotulo_metodo_integracao = QLabel()
+        self.rotulo_metodo_integracao.setWordWrap(True)
+        self.rotulo_metodo_integracao.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        linha.addWidget(self.rotulo_metodo_integracao, 1)
         self.layout_controles.addWidget(painel, 5, 0, 1, 4)
         self.botao_velocidade.clicked.connect(self.gerar_velocidade)
+        self.checkbox_media_aceleracao.toggled.connect(self.atualizar_metodo_integracao)
+        self.atualizar_metodo_integracao()
+
+    def atualizar_metodo_integracao(self):
+        media = self.checkbox_media_aceleracao.isChecked()
+        etapa = "retirar somente a média da aceleração → " if media else ""
+        self.rotulo_metodo_integracao.setText(
+            f"Aceleração tratada → {etapa}integrar → mm/s; v₀ = 0.\n"
+            "Deslocamento integra a velocidade exibida, sem outra compensação."
+        )
+        self.botao_velocidade.setToolTip(
+            f"Abre outra janela em mm/s: {etapa}integrar todo o sinal temporal tratado, "
+            "mesmo quando FFT ou RMS está visível. Preserva os dados de origem."
+        )
 
     def criar_controles_rms(self):
         linha = QHBoxLayout()
@@ -497,7 +513,11 @@ class TelaLynxAcelerometria(Tela):
             return
         canais = dict(sorted(canais.items()))
         try:
-            dados = integrar_relativo(self.tempo, self.df_sensores[list(canais)], 'aceleracao')
+            entrada = self.df_sensores[list(canais)]
+            medias = None
+            if self.checkbox_media_aceleracao.isChecked():
+                entrada, medias = retirar_media_aceleracao(self.tempo, entrada)
+            dados = integrar_relativo(self.tempo, entrada, 'aceleracao')
         except ValueError as erro:
             QMessageBox.warning(self, "Falha ao integrar", str(erro))
             return
@@ -505,5 +525,6 @@ class TelaLynxAcelerometria(Tela):
             self.tempo, dados, canais, 'velocidade', self.caminho_atual,
             inicio_arquivo=self.inicio_arquivo,
             tratamentos=self.rotulo_ativos.text(),
+            medias_aceleracao=None if medias is None else medias.to_dict(),
         )
         return mostrar_resultado(self, janela)

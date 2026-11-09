@@ -6,10 +6,26 @@ tratamentos desejados, selecione os acelerômetros/eixos e clique em
 a janela de aceleração permanece aberta. Mesmo com FFT ou RMS visível,
 a entrada da integração é o sinal temporal tratado completo.
 
-Desde a revisão **2026.11.09.1**, o cálculo integra diretamente cada canal do
-sinal tratado, sem subtrair média ou reta. Converte g para mm/s² usando
-**1 g = 9806,65 mm/s²** e integra pelos trapézios cumulativos, com velocidade
-inicial zero. Nenhum tratamento adicional é aplicado durante a integração.
+Na revisão **2026.11.09.2**, a opção **Retirar média da aceleração** aparece
+marcada por padrão. Antes de gerar velocidade, o programa calcula a **média
+aritmética de todas as amostras de cada canal tratado** e subtrai somente esse
+valor, em uma cópia. A operação vem depois de todos os filtros escolhidos,
+inclusive o passa-banda. Não mistura canais ou eixos e não ajusta inclinação.
+
+Depois, converte g para mm/s² usando **1 g = 9806,65 mm/s²** e integra pelos
+trapézios cumulativos, com velocidade inicial zero. Se desmarcar a opção,
+integra diretamente a aceleração tratada, sem retirar sua média.
+
+```text
+Padrão: aceleração tratada → retirar sua média por canal → integrar → velocidade
+Opção desmarcada: aceleração tratada → integrar → velocidade
+Ambos: velocidade exibida → integrar sem retirar sua média → deslocamento
+```
+
+O gráfico e os dados da janela de aceleração são preservados ao gerar velocidade:
+a compensação vale para a cópia usada na integração. As novas janelas e os
+SVG/HTML informam se a média foi retirada e registram seu valor em g para cada
+canal. Não há ajuste de reta nem de parábola em nenhuma etapa.
 
 Na janela de velocidade, selecione os canais e clique em
 **Gerar deslocamento**. O cálculo integra a velocidade exibida, sem subtrair
@@ -23,6 +39,11 @@ horas do CSV.
 Zoom apenas altera a visualização; não recorta o intervalo integrado.
 Os resultados dependem dos tratamentos escolhidos e das condições iniciais
 assumidas; não representam velocidade ou posição absoluta.
+
+A média aritmética usa peso igual para cada amostra. Ela é diferente da média
+temporal calculada como a área dos trapézios dividida pela duração, que dá meio
+peso às extremidades. Assim, retirar a média aritmética da aceleração não
+impõe velocidade final exatamente zero. Não se impõe deslocamento final zero.
 
 Cada resultado recebe uma cópia independente dos dados e da seleção de canais.
 Alterar tratamentos, seleções ou reabrir arquivos na origem não altera os
@@ -43,12 +64,18 @@ d[0] = 0
 d[i] − d[i−1] = (v[i−1] + v[i]) / 2 × (t[i] − t[i−1])
 ```
 
-`a` contém exatamente as amostras tratadas selecionadas na acelerometria;
+`a` contém as amostras tratadas selecionadas na acelerometria, **após subtrair
+a média aritmética se a opção estiver marcada**;
 `v` contém exatamente as amostras exibidas na janela de velocidade.
 As igualdades estão sujeitas ao arredondamento de ponto flutuante. Não há
-uso de FFT/RMS, imposição de repouso no final, remoção automática de deriva
-ou modificação das medições de origem. Duas amostras válidas bastam para
+uso de FFT/RMS, imposição de repouso no final, retirada da média da velocidade,
+ajustes polinomiais ou modificação das medições de origem. Duas amostras válidas bastam para
 calcular uma área.
+
+No instante inicial, o intervalo acumulado tem duração zero, portanto a integral
+acumulada é zero. A primeira variação de velocidade usa a área entre a primeira
+e a segunda amostras. O valor da primeira aceleração, isoladamente, não determina
+uma velocidade inicial; essa referência precisa ser conhecida ou assumida.
 
 Cada etapa é a integral da interpolação linear das suas amostras de entrada.
 Isso define uma referência matemática verificável, mas não determina o sinal
@@ -71,7 +98,10 @@ em relação ao movimento físico.
 Deriva é a mudança lenta que se acumula nas integrais. Uma aceleração residual
 constante `b` produz `Δv = b × t` e `Δd = b × t²/2`. Apenas **0,000001 g**,
 ao longo de 60 s, acrescenta **0,588399 mm/s** e **17,65197 mm**. A integral
-fiel preserva isso, seja a componente causada por movimento, sensor ou filtro.
+fiel preservaria isso se não houvesse retirada dessa média. Essa é a razão para
+oferecer a compensação explícita. Um desvio estritamente constante em todo o
+intervalo é retirado pela opção; variações de offset, transientes e outras
+componentes lentas ainda podem provocar deriva.
 
 Um sinal oscilatório também pode produzir uma velocidade com média diferente
 de zero quando se impõe v[0] = 0 em uma fase arbitrária. A condição inicial
@@ -98,6 +128,11 @@ introduzir componentes lentas depois do passa-banda e faziam o deslocamento
 integrar uma velocidade diferente da exibida. A revisão **2026.11.09.1**
 retira esses dois ajustes conforme a escolha pela integral fiel.
 
+A revisão **2026.11.09.2** acrescenta a retirada explícita da média **somente
+da aceleração**, marcada por padrão conforme a orientação escolhida. A
+velocidade continua sem retirada de média ou ajuste polinomial. A opção pode
+ser desmarcada para comparar com a integração direta da revisão 2026.11.09.1.
+
 Resultados novos podem mostrar valores maiores ou deriva que antes era
 removida. Não devem ser confundidos com confirmação de deslocamento físico.
 É preciso gerar novas janelas para usar o método novo; resultados anteriores
@@ -112,7 +147,8 @@ QT_QPA_PLATFORM=offscreen python -m unittest discover -s tests -v
 ```
 
 A suíte cobre soluções constantes, polinomiais e harmônicas conhecidas,
-conversão de unidades, condições iniciais, preservação das tendências,
+conversão de unidades, condições iniciais, retirada apenas da média da aceleração,
+preservação de inclinações e da média da velocidade,
 referência numérica independente em precisão estendida, validação de entradas, uso do sinal tratado
 com FFT/RMS ativos, preservação da origem, janelas independentes, seleção de
 canais e gravação real de SVG/HTML, além das regressões de CSV e codificação.
