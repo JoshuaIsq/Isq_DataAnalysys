@@ -94,6 +94,20 @@ filtro de ordem 8 por passagem. Os cortes informados são os cortes do projeto d
 uma passagem: aproximadamente −3 dB por passagem, ou −6 dB após ida e volta.
 O filtro tem fase zero e pode apresentar transientes no início e no fim do sinal.
 
+### Integral do sinal tratado
+
+Na revisão **2026.11.09.1**, **Gerar velocidade** integra diretamente a aceleração
+tratada em g para mm/s. **Gerar deslocamento** integra a velocidade exibida para
+mm. As duas etapas usam trapézios, condições iniciais zero e **não removem retas,
+parábolas nem médias automaticamente**. O método e os tratamentos da origem
+constam nas janelas e nas exportações SVG/HTML.
+
+Isso preserva também a deriva presente nas integrais; resultados podem ser
+maiores que nas versões com compensação automática. Fidelidade às amostras
+tratadas não garante exatidão do movimento físico: filtros, discretização,
+transientes, erro do sensor e condições iniciais influenciam o resultado.
+Veja as [garantias, limites e exemplos de deriva](docs/INTEGRACAO_ACELEROMETRIA.md).
+
 ## Organização
 
 ```text

@@ -3,6 +3,7 @@ import os
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 os.environ.setdefault('MPLCONFIGDIR', '/tmp/isq-matplotlib')
 import tempfile
+import json
 from datetime import datetime
 import matplotlib.dates as mdates
 from pathlib import Path
@@ -18,71 +19,111 @@ from isq_dataanalysys.processamento.integracao import integrar_relativo
 from isq_dataanalysys.interface.acelerometria import TelaLynxAcelerometria
 from isq_dataanalysys.exportacao.html import criar_figura_html
 from isq_dataanalysys import __version__ as VERSAO
+from isq_dataanalysys.processamento.sinais import Processamento
 from tests.apoio import ArquivoMixin
 
 
+def integral_referencia(tempo, valores):
+    """Áreas somadas em precisão estendida, sem usar o integrador de produção."""
+    t = np.asarray(tempo, dtype=np.longdouble)
+    y = np.asarray(valores, dtype=np.longdouble)
+    saida = np.zeros_like(y)
+    for i in range(1, len(t)):
+        saida[i] = saida[i-1] + (t[i]-t[i-1])*(y[i-1]+y[i])/2
+    return np.asarray(saida, dtype=float)
+
+
 class CalculoTests(unittest.TestCase):
-    def test_integral_cubica_unidades_e_tendencias(self):
-        x = np.linspace(-1, 1, 1001)
-        tempo = x + 101
-        h = x[1] - x[0]
-        k = np.sum(x**4) / np.sum(x**2)
-        # Integral trapezoidal exata de x³-k*x: inclui o erro conhecido h²/4.
-        esperado = (x**4 - 1) / 4 + (h*h/4 - k/2) * (x*x - 1)
-        for grandeza, tendencia, fator in (
-            ('aceleracao', 7 + 3*x, 9806.65),
-            ('velocidade', 7 + 3*x + 5*x*x, 1),
-        ):
-            dados = pd.DataFrame({4: x**3 + tendencia, 9: -2*x**3 + tendencia}, index=np.arange(1001)+20)
-            original = dados.copy(deep=True)
-            resultado = integrar_relativo(tempo, dados, grandeza)
-            np.testing.assert_allclose(resultado[4], esperado*fator, atol=1e-9)
-            np.testing.assert_allclose(resultado[9], -2*esperado*fator, atol=1e-9)
+    def test_constante_unidades_condicoes_iniciais_e_preservacao(self):
+        t = np.arange(12001)/200
+        dados = pd.DataFrame({4: np.full(len(t), 1e-6), 9: np.full(len(t), -2e-6)},
+                             index=np.arange(len(t))+20)
+        original = dados.copy(deep=True)
+        v = integrar_relativo(t+100, dados, 'aceleracao')
+        d = integrar_relativo(t+100, v, 'velocidade')
+        for canal, a in ((4, .00980665), (9, -.0196133)):
+            np.testing.assert_allclose(v[canal], a*t, atol=1e-12)
+            np.testing.assert_allclose(d[canal], a*t*t/2, atol=1e-10)
+        self.assertAlmostEqual(v.iloc[-1,0], .588399, places=10)
+        self.assertAlmostEqual(d.iloc[-1,0], 17.65197, places=9)
+        for resultado in (v, d):
             self.assertEqual(resultado.iloc[0].tolist(), [0, 0])
-            pd.testing.assert_frame_equal(dados, original)
             self.assertEqual(list(resultado), [4, 9])
             self.assertTrue(resultado.index.equals(dados.index))
+        pd.testing.assert_frame_equal(dados, original)
 
-    def test_tendencias_puras_sao_removidas(self):
-        t = np.linspace(0, 2, 101)
-        for tipo, valores in [('aceleracao', 3+4*t), ('velocidade', 5+2*t+7*t*t)]:
-            np.testing.assert_allclose(integrar_relativo(t, pd.DataFrame({1: valores}), tipo), 0, atol=1e-9)
+    def test_nao_remove_reta_da_aceleracao_nem_quadratica_da_velocidade(self):
+        h = 1/200
+        t = np.arange(2001)*h
+        v = integrar_relativo(t, pd.DataFrame({1: (3+4*t)/9806.65}), 'aceleracao')
+        np.testing.assert_allclose(v[1], 3*t+2*t*t, atol=1e-10)
+        # Integral analítica e erro conhecido dos trapézios para uma quadrática.
+        d = integrar_relativo(t, pd.DataFrame({1: 5+2*t+7*t*t}), 'velocidade')
+        np.testing.assert_allclose(d[1], 5*t+t*t+7*(t**3/3+h*h*t/6), atol=1e-10)
 
-    def test_senoide_de_aceleracao_ate_deslocamento_com_solucao_discreta(self):
-        # Soluções fechadas dos trapézios e das projeções polinomiais discretas.
-        # Verifica a cadeia completa sem usar o próprio integrador como referência.
-        x = np.linspace(-1, 1, 4001)
-        t = x + 51
-        h = x[1] - x[0]
-        w = 2*np.pi*10
+    def test_senoides_temporais_com_solucoes_discretas_conhecidas(self):
+        fs = 200
+        t = np.arange(4001)/fs
         amplitude_g = .02
-        aceleracao = pd.DataFrame({7: amplitude_g*np.cos(w*x) + 3 + .4*x})
-        c = h / (2*np.tan(w*h/2))
-        v_esperada = amplitude_g*9806.65*(c*(np.sin(w*x) - np.sin(w*x[0])) - (x-x[0])/len(x))
-        v = integrar_relativo(t, aceleracao, 'aceleracao')
-        np.testing.assert_allclose(v[7], v_esperada, atol=1e-9)
-        k = np.sum(x*np.sin(w*x)) / np.sum(x*x)
-        d_esperado = amplitude_g*9806.65*c*(-c*(np.cos(w*x)-np.cos(w*x[0])) - k*(x*x-x[0]**2)/2)
+        for f in (1, 2, 5, 10, 20, 30):
+            with self.subTest(f_hz=f):
+                w = 2*np.pi*f
+                c = 1/(2*fs*np.tan(np.pi*f/fs))
+                a = pd.DataFrame({7: amplitude_g*np.cos(w*t)})
+                v = integrar_relativo(t, a, 'aceleracao')
+                d = integrar_relativo(t, v, 'velocidade')
+                np.testing.assert_allclose(v[7], amplitude_g*9806.65*c*np.sin(w*t), atol=1e-9)
+                np.testing.assert_allclose(d[7], amplitude_g*9806.65*c*c*(1-np.cos(w*t)), atol=1e-8)
+                self.assertEqual(v.iloc[0,0], 0)
+                self.assertEqual(d.iloc[0,0], 0)
+
+    def test_integral_dos_valores_tratados_com_referencia_independente(self):
+        t = np.arange(12001)/200
+        sinal = .03 + .02*np.sin(2*np.pi*5*t) + .004*np.cos(2*np.pi*45*t)
+        original = pd.DataFrame({1: sinal, 5: -2*sinal}, index=np.arange(len(t))+10)
+        configuracoes = ({}, {'passa_banda': (1,30)}, {'passa_alta': 1}, {'passa_baixa': 30},
+                         {'calibracao': 2, 'offset': 200, 'media_movel': 5})
+        for config in configuracoes:
+            with self.subTest(config=config):
+                a, _ = Processamento.aplicar(t, original, config)
+                copia = a.copy(deep=True)
+                v = integrar_relativo(t, a, 'aceleracao')
+                d = integrar_relativo(t, v, 'velocidade')
+                esperado_v = integral_referencia(t, a.to_numpy().astype(np.longdouble)*np.longdouble('9806.65'))
+                esperado_d = integral_referencia(t, esperado_v)
+                np.testing.assert_allclose(v, esperado_v, rtol=1e-11, atol=1e-9)
+                np.testing.assert_allclose(d, esperado_d, rtol=1e-11, atol=1e-8)
+                pd.testing.assert_frame_equal(a, copia)
+
+    def test_prefixo_independe_de_amostras_futuras_e_origem_do_tempo(self):
+        t = np.arange(4001)/200
+        a = pd.DataFrame({1: .01*np.cos(2*np.pi*5*t)+1e-5*t})
+        v = integrar_relativo(t, a, 'aceleracao')
         d = integrar_relativo(t, v, 'velocidade')
-        np.testing.assert_allclose(d[7], d_esperado, atol=1e-9)
-        self.assertEqual(v.iloc[0, 0], 0)
-        self.assertEqual(d.iloc[0, 0], 0)
+        v_parcial = integrar_relativo(t[:2000], a.iloc[:2000], 'aceleracao')
+        d_parcial = integrar_relativo(t[:2000], v_parcial, 'velocidade')
+        pd.testing.assert_frame_equal(v.iloc[:2000], v_parcial)
+        pd.testing.assert_frame_equal(d.iloc[:2000], d_parcial)
+        np.testing.assert_allclose(integrar_relativo(t+10000, a, 'aceleracao'), v, atol=1e-8)
+
+    def test_duas_amostras_bastam_para_a_area_do_trapezio(self):
+        dados = pd.DataFrame({1: [2.,4.]})
+        for grandeza, fator in (('aceleracao',9806.65), ('velocidade',1)):
+            r = integrar_relativo([10,12], dados, grandeza)
+            np.testing.assert_allclose(r[1], [0,6*fator], atol=1e-10)
 
     def test_erro_numerico_e_grandeza_desconhecida(self):
-        dados = pd.DataFrame({1: [1., 2., 4., 8.]})
+        dados = pd.DataFrame({1: [1.,2.,4.,8.]})
         with self.assertRaises(ValueError):
-            integrar_relativo([0, 1, 2, 3], dados, 'fft')
-        with patch('isq_dataanalysys.processamento.integracao.np.linalg.lstsq', side_effect=np.linalg.LinAlgError):
-            with self.assertRaisesRegex(ValueError, 'Não foi possível integrar'):
-                integrar_relativo([0, 1, 2, 3], dados, 'aceleracao')
+            integrar_relativo([0,1,2,3], dados, 'fft')
         with self.assertRaisesRegex(ValueError, 'Não foi possível integrar'):
-            integrar_relativo([0, 1, 2, 3], pd.DataFrame({1: np.array([1, -1, 2, -2])*1e306}), 'aceleracao')
+            integrar_relativo([0,1,2,3], pd.DataFrame({1: np.array([1,-1,2,-2])*1e306}), 'aceleracao')
 
     def test_entradas_invalidas(self):
-        for tempo, valores, tipo in [([0, 1], [1, 2], 'aceleracao'), ([0, 1, 2], [1, 2, 3], 'velocidade'),
-                                     ([0, 0, 1], [1, 2, 3], 'aceleracao'),
-                                     ([0, 1, 2], [1, np.nan, 3], 'aceleracao'),
-                                     ([0, 1, 3], [1, 2, 3], 'aceleracao')]:
+        for tempo, valores, tipo in [([0], [1], 'aceleracao'),
+                                    ([0,0,1], [1,2,3], 'aceleracao'),
+                                    ([0,1,2], [1,np.nan,3], 'aceleracao'),
+                                    ([0,1,3], [1,2,3], 'aceleracao')]:
             with self.assertRaises(ValueError):
                 integrar_relativo(tempo, pd.DataFrame({1: valores}), tipo)
 
@@ -167,6 +208,53 @@ class FluxoTests(ArquivoMixin, unittest.TestCase):
             self.assertTrue(vel.isVisible())
             vel.close()
             self.assertTrue(acm.isVisible())
+        self.aviso.assert_not_called()
+
+    def test_passa_banda_integracao_fiel_e_metodo_nas_exportacoes(self):
+        acm = self.janela_aceleracao(3)
+        acm.aplicar_configuracao({'passa_banda': (1,30)})
+        origem = acm.df_sensores.copy(deep=True)
+        tratamentos = acm.rotulo_ativos.text()
+        esperado_v = integral_referencia(acm.tempo, origem.to_numpy()*9806.65)
+        vel = acm.gerar_velocidade()
+        self.janelas.append(vel)
+        np.testing.assert_allclose(vel.df_sensores, esperado_v, atol=1e-9)
+        # Mudar a origem não muda os tratamentos registrados nem a velocidade já aberta.
+        acm.restaurar_original()
+        disp = vel.gerar_deslocamento()
+        self.janelas.append(disp)
+        np.testing.assert_allclose(disp.df_sensores, integral_referencia(vel.tempo, esperado_v), atol=1e-9)
+        for janela in (vel, disp):
+            self.assertEqual(janela.tratamentos_origem, tratamentos)
+            self.assertIn('Passa-banda: 1–30 Hz', janela.descricao_exportacao)
+            self.assertIn('Sem remoção automática de tendências', janela.descricao_exportacao)
+            self.assertNotIn('remover ajuste', janela.descricao_exportacao)
+            figura = criar_figura_html(janela.plots_para_exportar(), descricao=janela.descricao_exportacao)
+            for curva, canal in zip(figura.data, janela.df_sensores):
+                np.testing.assert_allclose(curva.y, janela.df_sensores[canal], atol=1e-12)
+            with tempfile.TemporaryDirectory() as pasta:
+                with patch.object(QFileDialog, 'getExistingDirectory', return_value=pasta), \
+                        patch.object(QMessageBox, 'information'):
+                    janela.exportar_svg()
+                    janela.exportar_html()
+                for extensao in ('svg','html'):
+                    arquivos = list(Path(pasta).glob(f'*.{extensao}'))
+                    self.assertEqual(len(arquivos), 1)
+                    conteudo = arquivos[0].read_text()
+                    if extensao == 'html':
+                        # O HTML serializa os acentos em escapes JSON válidos.
+                        trecho = conteudo[conteudo.rfind('Plotly.newPlot(')+len('Plotly.newPlot('):]
+                        decoder = json.JSONDecoder()
+                        valores = []
+                        for _ in range(3):
+                            valor, fim = decoder.raw_decode(trecho.lstrip())
+                            valores.append(valor)
+                            trecho = trecho.lstrip()[fim:].lstrip().lstrip(',').lstrip()
+                        conteudo = valores[2]['title']['text']
+                    self.assertTrue('trapézios' in conteudo, 'Método ausente na exportação')
+                    self.assertTrue('Sem remoção automática de tendências' in conteudo,
+                                    'Referência da integral ausente na exportação')
+                    self.assertTrue('1–30 Hz' in conteudo, 'Cortes do filtro ausentes na exportação')
         self.aviso.assert_not_called()
 
     def test_sem_canais_nao_abre_janela(self):

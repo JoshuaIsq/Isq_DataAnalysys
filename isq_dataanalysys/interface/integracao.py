@@ -36,7 +36,8 @@ def mostrar_resultado(origem, janela):
 
 
 class TelaIntegracao(ExportacaoGraficos, QMainWindow):
-    def __init__(self, tempo, dados, canais, grandeza, caminho=None, inicio_arquivo=None):
+    def __init__(self, tempo, dados, canais, grandeza, caminho=None, inicio_arquivo=None,
+                 tratamentos=None):
         super().__init__()
         if grandeza not in ('velocidade', 'deslocamento'):
             raise ValueError('Grandeza de resultado desconhecida.')
@@ -47,19 +48,23 @@ class TelaIntegracao(ExportacaoGraficos, QMainWindow):
         self.caminho_atual = caminho
         # Preserva a referência temporal sem reler o CSV ao exportar.
         self.inicio_exportacao = inicio_arquivo
+        self.tratamentos_origem = tratamentos
         self.janelas_resultados = []
         velocidade = grandeza == 'velocidade'
         nome, unidade, condicao = ('Velocidade', 'mm/s', 'v₀') if velocidade else ('Deslocamento', 'mm', 'd₀')
         referencia = 'relativa ao início do intervalo' if velocidade else 'relativo ao início do intervalo'
         metodo = (
-            'Aceleração tratada em g → remover ajuste linear → integrar; 1 g = 9806,65 mm/s².'
+            'Aceleração tratada em g → integrar por trapézios; 1 g = 9806,65 mm/s².'
             if velocidade else
-            'Velocidade em mm/s → remover ajuste quadrático → integrar para mm.'
+            'Velocidade exibida em mm/s → integrar por trapézios para mm.'
         )
         self.descricao_exportacao = (
             f'{nome} {referencia}; {condicao} = 0 {unidade}; '
-            f'intervalo: {self.tempo[0]:g} a {self.tempo[-1]:g} s.\n{metodo}'
+            f'intervalo: {self.tempo[0]:g} a {self.tempo[-1]:g} s.\n{metodo}\n'
+            'Sem remoção automática de tendências; a deriva do sinal é preservada.'
         )
+        if self.tratamentos_origem:
+            self.descricao_exportacao += f'\nOrigem — {self.tratamentos_origem}'
         self.setWindowTitle(f'{nome} — {referencia} — v{VERSAO}')
         self.resize(1100, 700)
         central = QWidget()
@@ -105,7 +110,10 @@ class TelaIntegracao(ExportacaoGraficos, QMainWindow):
             self.botao_deslocamento = QPushButton('Gerar deslocamento')
             self.botao_deslocamento.setObjectName('gerar_deslocamento')
             self.botao_deslocamento.setMinimumHeight(34)
-            self.botao_deslocamento.setToolTip('Abre outra janela em mm, com deslocamento inicial zero.')
+            self.botao_deslocamento.setToolTip(
+                'Integra a velocidade exibida sem remover tendências. '
+                'Abre outra janela em mm, com deslocamento inicial zero.'
+            )
             self.botao_deslocamento.clicked.connect(self.gerar_deslocamento)
             acoes.addWidget(self.botao_deslocamento)
         acoes.addStretch()
@@ -162,5 +170,6 @@ class TelaIntegracao(ExportacaoGraficos, QMainWindow):
         janela = TelaIntegracao(
             self.tempo, dados, canais, 'deslocamento', self.caminho_atual,
             inicio_arquivo=self.inicio_exportacao,
+            tratamentos=self.tratamentos_origem,
         )
         return mostrar_resultado(self, janela)

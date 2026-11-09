@@ -120,12 +120,12 @@ class TelaLynxAcelerometria(Tela):
             "QPushButton:disabled {background: #d4dce5; color: #536170;}"
         )
         self.botao_velocidade.setToolTip(
-            "Abre outra janela em mm/s. Remove uma reta da aceleração tratada e integra "
-            "todo o intervalo temporal, mesmo quando FFT ou RMS está visível."
+            "Abre outra janela em mm/s. Integra a aceleração tratada, sem remover tendências, "
+            "em todo o intervalo temporal, mesmo quando FFT ou RMS está visível."
         )
         linha.addWidget(self.botao_velocidade)
         descricao = QLabel(
-            "Integração temporal → mm/s · ajuste linear · velocidade inicial zero\n"
+            "Integral do sinal tratado → mm/s · sem remover tendências · velocidade inicial zero\n"
             "Abre uma nova janela; resultado relativo ao início do intervalo."
         )
         descricao.setWordWrap(True)
@@ -504,5 +504,6 @@ class TelaLynxAcelerometria(Tela):
         janela = TelaIntegracao(
             self.tempo, dados, canais, 'velocidade', self.caminho_atual,
             inicio_arquivo=self.inicio_arquivo,
+            tratamentos=self.rotulo_ativos.text(),
         )
         return mostrar_resultado(self, janela)
