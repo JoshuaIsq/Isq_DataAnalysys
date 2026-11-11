@@ -123,6 +123,7 @@ class InterfaceDataHoraTests(ArquivoMixin, unittest.TestCase):
         acm = self.abrir(TelaLynxAcelerometria, caminho)
         ext = self.abrir(TelaLynxExtensometria, caminho)
         tempo, original = acm.tempo.copy(), acm.df_original.copy(deep=True)
+        acm.checkbox_media_aceleracao.setChecked(False)
         acm.botao_velocidade.click()
         vel = acm.janelas_resultados[-1]
         self.janelas.append(vel)

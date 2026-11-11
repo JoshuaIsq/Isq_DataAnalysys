@@ -94,6 +94,24 @@ filtro de ordem 8 por passagem. Os cortes informados são os cortes do projeto d
 uma passagem: aproximadamente −3 dB por passagem, ou −6 dB após ida e volta.
 O filtro tem fase zero e pode apresentar transientes no início e no fim do sinal.
 
+### Integral do sinal tratado
+
+Na revisão **2026.11.09.2**, **Retirar média da aceleração** vem marcada por
+padrão. **Gerar velocidade** subtrai somente a média aritmética de cada canal
+temporal tratado, após os filtros, em uma cópia; depois integra de g para mm/s.
+Desmarque a opção para integrar sem retirar essa média. A janela de aceleração
+é preservada. **Gerar deslocamento** integra a velocidade exibida para mm,
+**sem retirar a média da velocidade**. Não há ajuste de reta ou parábola.
+As duas etapas usam trapézios e condições iniciais zero. O método, os valores
+das médias removidas e os tratamentos constam nas janelas e nos SVG/HTML.
+
+Retirar a média da aceleração não garante eliminar toda deriva ou zerar o
+deslocamento final. Resultados podem ser maiores que nas versões com ajustes
+polinomiais. Fidelidade às amostras
+tratadas não garante exatidão do movimento físico: filtros, discretização,
+transientes, erro do sensor e condições iniciais influenciam o resultado.
+Veja as [garantias, limites e exemplos de deriva](docs/INTEGRACAO_ACELEROMETRIA.md).
+
 ## Organização
 
 ```text
