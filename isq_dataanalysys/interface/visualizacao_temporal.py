@@ -9,11 +9,14 @@ class VisualizacaoTemporal:
     def criar_limites_visualizacao(self, linha_inicial=5):
         self.campo_y_min = self.campo_limite()
         self.campo_y_max = self.campo_limite()
-        self.campo_tempo_inicio = self.campo_limite(" s")
-        self.campo_tempo_fim = self.campo_limite(" s")
+        self.campo_tempo_inicio = self.campo_limite(" min")
+        self.campo_tempo_fim = self.campo_limite(" min")
+        for campo in (self.campo_tempo_inicio, self.campo_tempo_fim):
+            campo.setDecimals(12)
+            campo.setToolTip("Minutos desde o início da gravação. O intervalo altera somente a visualização.")
         linha = QHBoxLayout()
         for texto, campo in (("Escala mínima:", self.campo_y_min), ("máxima:", self.campo_y_max),
-                             ("Tempo inicial:", self.campo_tempo_inicio), ("final:", self.campo_tempo_fim)):
+                             ("Tempo inicial (min):", self.campo_tempo_inicio), ("final:", self.campo_tempo_fim)):
             rotulo = QLabel(texto)
             rotulo.setFixedWidth(rotulo.sizeHint().width())
             linha.addWidget(rotulo)
@@ -38,7 +41,7 @@ class VisualizacaoTemporal:
         campo.setDecimals(2)
         campo.setRange(-1e100, 1e100)
         campo.setSuffix(sufixo)
-        campo.setFixedWidth(120) 
+        campo.setFixedWidth(120)
         campo.setEnabled(False)
         return campo
 
@@ -46,13 +49,13 @@ class VisualizacaoTemporal:
         for campo in (self.campo_y_min, self.campo_y_max, self.campo_tempo_inicio, self.campo_tempo_fim):
             campo.setEnabled(True)
         for campo in (self.campo_tempo_inicio, self.campo_tempo_fim):
-            campo.setRange(float(self.tempo[0]), float(self.tempo[-1]))
+            campo.setRange(float(self.tempo[0])/60, float(self.tempo[-1])/60)
         self.botao_aplicar_visualizacao.setEnabled(True)
         self.botao_ajustar.setEnabled(True)
 
     def definir_limites(self, tempo, escala):
         for campo, valor in zip((self.campo_tempo_inicio, self.campo_tempo_fim, self.campo_y_min, self.campo_y_max),
-                                (*tempo, *escala)):
+                                (tempo[0]/60, tempo[1]/60, *escala)):
             campo.setValue(float(valor))
         self.grafico.setRange(xRange=tempo, yRange=escala, padding=0, disableAutoRange=True)
         self.limites_visualizacao[self.unidade_visual] = [list(tempo), list(escala)]
@@ -60,13 +63,29 @@ class VisualizacaoTemporal:
     def aplicar_visualizacao(self):
         if self.df_sensores is None:
             return
-        tempo = [self.campo_tempo_inicio.value(), self.campo_tempo_fim.value()]
+        tempo = [self.segundos_do_campo(campo) for campo in (self.campo_tempo_inicio, self.campo_tempo_fim)]
         escala = [self.campo_y_min.value(), self.campo_y_max.value()]
         if tempo[0] >= tempo[1] or escala[0] >= escala[1]:
             QMessageBox.warning(self, "Limites inválidos", "O início deve ser menor que o fim e a escala mínima deve ser menor que a máxima.")
             return False
         self.definir_limites(tempo, escala)
         return True
+
+    def segundos_do_campo(self, campo):
+        """Preserva endpoints exatos apesar do arredondamento do spinbox em minutos."""
+        valor = campo.value()
+        if valor == campo.minimum():
+            return float(self.tempo[0])
+        if valor == campo.maximum():
+            return float(self.tempo[-1])
+        return valor*60
+
+    def intervalo_exportacao(self):
+        if self.df_sensores is None:
+            return None
+        faixa = self.grafico.viewRange()[0]
+        return (max(float(self.tempo[0]), float(faixa[0])),
+                min(float(self.tempo[-1]), float(faixa[1])))
 
     def ajustar_aos_dados(self):
         if self.df_sensores is None:

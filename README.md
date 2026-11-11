@@ -112,6 +112,20 @@ tratadas não garante exatidão do movimento físico: filtros, discretização,
 transientes, erro do sensor e condições iniciais influenciam o resultado.
 Veja as [garantias, limites e exemplos de deriva](docs/INTEGRACAO_ACELEROMETRIA.md).
 
+### Intervalo em minutos e CSV tratado
+
+A revisão **2026.11.11.1** permite avaliar um trecho em minutos nas janelas
+temporais, inclusive aceleração, velocidade e deslocamento. Por exemplo,
+**40 até 60 min → Aplicar intervalo**. As novas janelas herdam o recorte visual;
+os cálculos de integração permanecem sobre o sinal completo.
+
+**Exportar → CSV tratado** salva canais selecionados e amostras do intervalo,
+com unidades, metadados e timestamp. Na tela inicial, **Dados tratados** reabre
+esses arquivos sem reaplicar tratamentos ou alterar a referência temporal.
+O HTML preserva o intervalo visível e mostra data/hora em cada eixo temporal
+quando o arquivo de origem possui horário reconhecido.
+Veja o [guia de intervalos, exportação e reabertura](docs/DADOS_TRATADOS.md).
+
 ## Organização
 
 ```text

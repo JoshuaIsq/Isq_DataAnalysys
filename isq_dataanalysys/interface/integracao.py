@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
 )
 from .exportacao import ExportacaoGraficos
 from .eixo_temporal import EixoDataHora, configurar_eixo_temporal
+from .intervalo_temporal import PainelIntervaloTemporal, VinculoIntervalos
 from isq_dataanalysys.processamento.integracao import integrar_relativo
 from isq_dataanalysys.leitores.acelerometria import EIXOS, EIXO_DESCONHECIDO
 from isq_dataanalysys import __version__ as VERSAO
@@ -37,7 +38,7 @@ def mostrar_resultado(origem, janela):
 
 class TelaIntegracao(ExportacaoGraficos, QMainWindow):
     def __init__(self, tempo, dados, canais, grandeza, caminho=None, inicio_arquivo=None,
-                 tratamentos=None, medias_aceleracao=None):
+                 tratamentos=None, medias_aceleracao=None, intervalo_visualizacao=None):
         super().__init__()
         if grandeza not in ('velocidade', 'deslocamento'):
             raise ValueError('Grandeza de resultado desconhecida.')
@@ -122,6 +123,7 @@ class TelaIntegracao(ExportacaoGraficos, QMainWindow):
         menu = QMenu(self.exportar)
         menu.addAction('SVG vetorial').triggered.connect(self.exportar_svg)
         menu.addAction('HTML interativo').triggered.connect(self.exportar_html)
+        menu.addAction('CSV tratado').triggered.connect(self.exportar_csv)
         self.exportar.setMenu(menu)
         acoes.addWidget(self.exportar)
         if velocidade:
@@ -135,15 +137,19 @@ class TelaIntegracao(ExportacaoGraficos, QMainWindow):
             self.botao_deslocamento.clicked.connect(self.gerar_deslocamento)
             acoes.addWidget(self.botao_deslocamento)
         acoes.addStretch()
+        self.painel_intervalo = PainelIntervaloTemporal()
+        self.painel_intervalo.definir_dados(self.tempo)
+        self.painel_intervalo.intervalo_alterado.connect(self.aplicar_intervalo_temporal)
+        cabecalho.addWidget(self.painel_intervalo)
         direito.addWidget(painel)
 
         self.grafico = pg.GraphicsLayoutWidget()
         self.grafico.setBackground('w')
         direito.addWidget(self.grafico, 1)
         self.graficos_eixos = {}
+        self.vinculo_intervalos = VinculoIntervalos()
         presentes = {eixo for eixo, _rotulo in self.canais.values()}
         eixos = [e for e in EIXOS if e in presentes]
-        base = None
         for linha, eixo in enumerate(eixos):
             plot = self.grafico.addPlot(row=linha, col=0,
                                        axisItems={"bottom": EixoDataHora(orientation="bottom")})
@@ -151,6 +157,7 @@ class TelaIntegracao(ExportacaoGraficos, QMainWindow):
             plot.setTitle(f'{titulo_eixo} — {nome} {referencia}', color='#333333', size='10pt')
             configurar_eixo_temporal(plot, self.inicio_exportacao)
             plot.setLabel('left', nome, units=unidade)
+            plot.getAxis('left').setWidth(85)
             for lado in ('left', 'bottom'):
                 plot.getAxis(lado).enableAutoSIPrefix(False)
                 plot.getAxis(lado).setPen('#555555')
@@ -158,10 +165,7 @@ class TelaIntegracao(ExportacaoGraficos, QMainWindow):
             plot.showGrid(x=True, y=True, alpha=.25)
             plot.addLegend(colCount=4, offset=(10, 5), labelTextColor='#333333')
             self.graficos_eixos[eixo] = plot
-            if base is None:
-                base = plot
-            else:
-                plot.setXLink(base)
+            self.vinculo_intervalos.adicionar_plot(plot)
         cores = ['#1565C0', '#D55E00', '#18864B', '#8E44AD']
         for numero, (canal, (eixo, rotulo)) in enumerate(self.canais.items()):
             self.curvas[canal] = self.graficos_eixos[eixo].plot(
@@ -170,6 +174,16 @@ class TelaIntegracao(ExportacaoGraficos, QMainWindow):
             )
         self.statusBar().showMessage(f'{len(self.tempo)} amostras | {nome} em {unidade} | {condicao} = 0')
         self.statusBar().addPermanentWidget(QLabel(f'v{VERSAO}'))
+        if intervalo_visualizacao is not None:
+            self.painel_intervalo.definir_intervalo_segundos(*intervalo_visualizacao)
+        elif self.tempo[0] < self.tempo[-1]:
+            self.aplicar_intervalo_temporal(self.painel_intervalo.limites_segundos)
+
+    def intervalo_exportacao(self):
+        return self.painel_intervalo.intervalo_exportacao()
+
+    def aplicar_intervalo_temporal(self, intervalo):
+        self.vinculo_intervalos.definir_intervalo(intervalo)
 
     def atualizar_visibilidade(self):
         for canal, curva in self.curvas.items():
@@ -191,5 +205,6 @@ class TelaIntegracao(ExportacaoGraficos, QMainWindow):
             tratamentos=self.tratamentos_origem,
             medias_aceleracao=(None if self.medias_aceleracao is None else
                                {c: self.medias_aceleracao[c] for c in canais}),
+            intervalo_visualizacao=self.painel_intervalo.intervalo_exportacao(),
         )
         return mostrar_resultado(self, janela)

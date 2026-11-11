@@ -14,6 +14,7 @@ from isq_dataanalysys.interface.integracao import TelaIntegracao, mostrar_result
 from isq_dataanalysys.interface.passa_banda import DialogoPassaBanda
 from isq_dataanalysys import __version__ as VERSAO
 from isq_dataanalysys.interface.eixo_temporal import EixoDataHora, configurar_eixo_temporal
+from .intervalo_temporal import PainelIntervaloTemporal, VinculoIntervalos
 
 
 class TelaLynxAcelerometria(Tela):
@@ -47,6 +48,9 @@ class TelaLynxAcelerometria(Tela):
         self.rotulo_importacao.setStyleSheet("color: #6b4e16; background: #fff4dc; padding: 4px;")
         self.rotulo_importacao.hide()
         self.layout_controles.addWidget(self.rotulo_importacao, 6, 0, 1, 4)
+        self.painel_intervalo = PainelIntervaloTemporal()
+        self.painel_intervalo.intervalo_alterado.connect(self.aplicar_intervalo_temporal)
+        self.layout_controles.addWidget(self.painel_intervalo, 7, 0, 1, 4)
 
     def criar_controle_passa_banda(self):
         # Mantém os controles dentro da largura de 1330 px usada pela tela.
@@ -215,6 +219,7 @@ class TelaLynxAcelerometria(Tela):
         self.tempo = tempo
         self.df_original = canais.copy()
         self.df_sensores = canais.copy()
+        self.painel_intervalo.definir_dados(tempo)
         self.sensores_lynx = sensores
         self.info_arquivo = info
         self.caminho_atual = Path(caminho)
@@ -253,10 +258,9 @@ class TelaLynxAcelerometria(Tela):
         self.grafico = pg.GraphicsLayoutWidget()
         self.grafico.setBackground("w")
         self.graficos_eixos = {}
+        self.vinculo_intervalos = VinculoIntervalos()
         for linha, eixo in enumerate("XYZ"):
             self.adicionar_grafico_eixo(eixo, linha)
-        self.graficos_eixos["Y"].setXLink(self.graficos_eixos["X"])
-        self.graficos_eixos["Z"].setXLink(self.graficos_eixos["X"])
         layout_direito.addWidget(self.grafico, 1)
 
     def adicionar_grafico_eixo(self, eixo, linha):
@@ -273,7 +277,10 @@ class TelaLynxAcelerometria(Tela):
             grafico.getAxis(lado).setPen("#555555")
             grafico.getAxis(lado).setTextPen("#333333")
         grafico.getAxis("left").enableAutoSIPrefix(False)
+        # Margens iguais alinham os painéis; os limites X são sincronizados numericamente.
+        grafico.getAxis("left").setWidth(85)
         self.graficos_eixos[eixo] = grafico
+        self.vinculo_intervalos.adicionar_plot(grafico)
 
     def recriar_sensores(self, sensores):
         for widget in list(self.checkboxes_canais.values()) + self.grupos_eixos:
@@ -443,22 +450,26 @@ class TelaLynxAcelerometria(Tela):
                     name=f"Canal {n} — {self.info_arquivo['nomes'][n]}",
                     connect="finite",
                 )
+                if log:
+                    curva.dados_csv = np.array(dados_plot[n].to_numpy(),copy=True)
                 self.curvas_lynx[(numero, eixo)] = curva
 
         self.atualizar_visibilidade()
         presentes = {e for sensor in self.sensores_lynx for e in sensor}
-        base = None
         for eixo, grafico in self.graficos_eixos.items():
             grafico.setVisible(eixo in presentes)
-            grafico.setXLink(None)
-            if eixo in presentes:
-                if base is None:
-                    base = grafico
-                else:
-                    grafico.setXLink(base)
 
         for grafico in self.graficos_eixos.values():
             grafico.enableAutoRange()
+
+        self.painel_intervalo.setEnabled(not fft and len(self.tempo) > 1)
+        if fft and len(tempo_plot) > 1:
+            self.vinculo_intervalos.definir_intervalo((float(tempo_plot[0]),float(tempo_plot[-1])))
+        elif not fft:
+            intervalo = (self.painel_intervalo.intervalo_exportacao()
+                         or self.painel_intervalo.limites_segundos)
+            if intervalo is not None and intervalo[0] < intervalo[1]:
+                self.aplicar_intervalo_temporal(intervalo)
 
         fs = self.info_processamento["fs"]
         modo = "Sinal no tempo"
@@ -499,6 +510,14 @@ class TelaLynxAcelerometria(Tela):
         )
 
 
+    def intervalo_exportacao(self):
+        return None if self.botao_fft.isChecked() else self.painel_intervalo.intervalo_exportacao()
+
+    def aplicar_intervalo_temporal(self, intervalo):
+        if self.botao_fft.isChecked():
+            return
+        self.vinculo_intervalos.definir_intervalo(intervalo)
+
     def gerar_velocidade(self):
         if self.df_sensores is None:
             return
@@ -526,5 +545,6 @@ class TelaLynxAcelerometria(Tela):
             inicio_arquivo=self.inicio_arquivo,
             tratamentos=self.rotulo_ativos.text(),
             medias_aceleracao=None if medias is None else medias.to_dict(),
+            intervalo_visualizacao=self.painel_intervalo.intervalo_exportacao(),
         )
         return mostrar_resultado(self, janela)

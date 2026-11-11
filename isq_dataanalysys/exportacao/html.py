@@ -123,11 +123,13 @@ def criar_figura_html(plots, inicio=None, titulo="Dados tratados", descricao="")
             ),
             range=faixa_x,
             autorange=False,
+            showticklabels=True,
             row=linha,
             col=1,
         )
         if usar_data:
-            figura.update_xaxes(tickformat="%d/%m/%Y<br>%H:%M:%S.%L", nticks=5, row=linha, col=1)
+            figura.update_xaxes(tickformat="%d/%m/%Y<br>%H:%M:%S.%L", nticks=5,
+                               hoverformat="%d/%m/%Y %H:%M:%S.%L", row=linha, col=1)
 
     if not figura.data:
         raise ValueError(

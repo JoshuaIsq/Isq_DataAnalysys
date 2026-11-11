@@ -241,7 +241,7 @@ class InterfaceReguaTests(ArquivoMixin, unittest.TestCase):
         janela.controle_calibração.campo.setValue(2)
         janela.controle_calibração.botao.click()
         for campo, valor in ((janela.campo_y_min, -10), (janela.campo_y_max, 10),
-                             (janela.campo_tempo_inicio, .2), (janela.campo_tempo_fim, .8)):
+                             (janela.campo_tempo_inicio, .2/60), (janela.campo_tempo_fim, .8/60)):
             campo.setValue(valor)
         janela.botao_aplicar_visualizacao.click()
         np.testing.assert_allclose(janela.grafico.viewRange(), [[.2, .8], [-10, 10]])
@@ -297,6 +297,52 @@ class InterfaceReguaTests(ArquivoMixin, unittest.TestCase):
             janela.painel_referencia.botao_definir.click()
         self.assertEqual(janela.grafico.getAxis("bottom").tickStrings([0], 1, 1), ["27/10/2026 11:45:00"])
         pd.testing.assert_frame_equal(janela.df_sensores, original)
+
+    def test_intervalo_minutos_40_a_60_limites_e_dados_preservados(self):
+        def gravacao_longa(linhas):
+            linhas[0][-1] = f'{1/7:.17g}Hz'
+            for i, linha in enumerate(linhas[5:]):
+                linha[0] = str(i*7)
+            ultima = list(linhas[-1])
+            ultima[0] = '7000'
+            linhas.append(ultima)
+
+        janela = self.janela(self.arquivo(['mm'], alterar=gravacao_longa))
+        tempo = janela.tempo.copy()
+        original = janela.df_sensores.copy(deep=True)
+        self.assertEqual(janela.campo_tempo_inicio.suffix(), ' min')
+        self.assertEqual(janela.campo_tempo_inicio.minimum(), 0)
+        self.assertAlmostEqual(janela.campo_tempo_fim.maximum(), 7000/60, places=10)
+        janela.campo_tempo_inicio.setValue(40)
+        janela.campo_tempo_fim.setValue(60)
+        self.assertTrue(janela.aplicar_visualizacao())
+        np.testing.assert_array_equal(janela.grafico.viewRange()[0], [2400, 3600])
+        self.assertEqual(janela.intervalo_exportacao(), (2400,3600))
+        janela.campo_tempo_inicio.setValue(70)
+        self.assertFalse(janela.aplicar_visualizacao())
+        np.testing.assert_array_equal(janela.grafico.viewRange()[0], [2400,3600])
+        janela.campo_tempo_inicio.setValue(-10)
+        janela.campo_tempo_fim.setValue(1000)
+        self.assertTrue(janela.aplicar_visualizacao())
+        # O máximo em minutos é arredondado no campo; o endpoint em segundos é exato.
+        np.testing.assert_array_equal(janela.grafico.viewRange()[0], [0,7000])
+        np.testing.assert_array_equal(janela.tempo, tempo)
+        pd.testing.assert_frame_equal(janela.df_sensores, original)
+
+    def test_recorte_com_tempo_original_preserva_minuto_40(self):
+        def recorte(linhas):
+            linhas[0][-1] = '0,2Hz'
+            for i, linha in enumerate(linhas[5:]):
+                linha[0] = str(2400+i*5)
+
+        janela = self.janela(self.arquivo(['mm'], alterar=recorte))
+        self.assertEqual(janela.campo_tempo_inicio.minimum(), 40)
+        self.assertEqual(janela.campo_tempo_inicio.value(), 40)
+        janela.campo_tempo_inicio.setValue(45)
+        janela.campo_tempo_fim.setValue(60)
+        self.assertTrue(janela.aplicar_visualizacao())
+        self.assertEqual(janela.intervalo_exportacao(), (2700,3600))
+        self.assertEqual(janela.tempo[0],2400)
 
 
 if __name__ == "__main__":

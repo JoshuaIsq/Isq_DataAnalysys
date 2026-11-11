@@ -144,6 +144,7 @@ class Tela(ExportacaoGraficos, QMainWindow):
 
         acao_svg = self.menu_exportar.addAction("SVG vetorial")
         acao_html = self.menu_exportar.addAction("HTML interativo")
+        self.menu_exportar.addAction("CSV tratado").triggered.connect(self.exportar_csv)
 
         acao_svg.triggered.connect(self.exportar_svg)
         acao_html.triggered.connect(self.exportar_html)

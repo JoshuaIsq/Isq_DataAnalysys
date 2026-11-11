@@ -265,7 +265,7 @@ class InterfaceTests(ArquivoMixin, unittest.TestCase):
         ext = self.janela(TelaLynxExtensometria)
         ext.importar_caminho(self.arquivo(['MPa', 'μm/m']))
         for campo, valor in ((ext.campo_y_min, -5), (ext.campo_y_max, 10),
-                             (ext.campo_tempo_inicio, .2), (ext.campo_tempo_fim, .8)):
+                             (ext.campo_tempo_inicio, .2/60), (ext.campo_tempo_fim, .8/60)):
             campo.setValue(valor)
         self.assertTrue(ext.aplicar_visualizacao())
         ext.botao_deformacao.click()
@@ -366,8 +366,8 @@ class InterfaceTests(ArquivoMixin, unittest.TestCase):
         ext = self.janela(TelaLynxExtensometria)
         ext.importar_caminho(self.arquivo(['MPa', 'μm/m']))
         ext.botao_deformacao.click()
-        ext.campo_tempo_inicio.setValue(.2)
-        ext.campo_tempo_fim.setValue(.8)
+        ext.campo_tempo_inicio.setValue(.2/60)
+        ext.campo_tempo_fim.setValue(.8/60)
         ext.campo_y_min.setValue(-7)
         ext.campo_y_max.setValue(8)
         ext.aplicar_visualizacao()
