@@ -228,6 +228,8 @@ class ExportacaoGraficos:
                 titulo=self.windowTitle(),
                 descricao=getattr(self, "descricao_exportacao", ""),
             )
+            if getattr(self,'metadados_tratados',None):
+                figura.update_layout(meta=self.metadados_tratados)
 
             figura.write_html(
                 str(caminho),

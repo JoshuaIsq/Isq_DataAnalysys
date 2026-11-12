@@ -19,18 +19,24 @@ integra diretamente a aceleração tratada, sem retirar sua média.
 ```text
 Padrão: aceleração tratada → retirar sua média por canal → integrar → velocidade
 Opção desmarcada: aceleração tratada → integrar → velocidade
-Ambos: velocidade exibida → integrar sem retirar sua média → deslocamento
+Ambos: velocidade exibida → integrar sem retirar sua média → deslocamento bruto
+Padrão novo: deslocamento bruto → subtrair reta de mínimos quadrados → exibir
 ```
 
 O gráfico e os dados da janela de aceleração são preservados ao gerar velocidade:
 a compensação vale para a cópia usada na integração. As novas janelas e os
 SVG/HTML informam se a média foi retirada e registram seu valor em g para cada
-canal. Não há ajuste de reta nem de parábola em nenhuma etapa.
+canal. Não há ajuste de reta na aceleração nem de parábola na velocidade.
+Desde **2026.11.12.1**, a nova janela de deslocamento permite retirar uma reta
+do próprio deslocamento, depois de integrar. A opção vem marcada e pode ser
+desmarcada para comparar com a integral bruta. O ajuste pode mudar o valor inicial
+do deslocamento exibido. Veja [correção e verificação por derivação](CORRECAO_DESLOCAMENTO.md).
 
 Na janela de velocidade, selecione os canais e clique em
 **Gerar deslocamento**. O cálculo integra a velocidade exibida, sem subtrair
 quadrática ou recentrar o sinal. Usa os trapézios e deslocamento inicial zero.
-O resultado em **mm** abre em outra janela.
+O resultado em **mm** abre em outra janela, com a opção posterior de ajuste linear
+do deslocamento. O início zero se refere à integral anterior a esse ajuste.
 
 Os resultados são **relativos ao início do intervalo** completo carregado,
 identificado nas janelas. Os cálculos mantêm os segundos da origem; quando
@@ -55,7 +61,7 @@ mesmo depois de alterar ou fechar a janela de origem.
 
 ## O que a integral fiel garante
 
-Para cada canal, em cada intervalo de amostragem:
+Para cada canal, em cada intervalo de amostragem, antes da correção opcional do deslocamento:
 
 ```text
 v[0] = 0
@@ -69,7 +75,7 @@ a média aritmética se a opção estiver marcada**;
 `v` contém exatamente as amostras exibidas na janela de velocidade.
 As igualdades estão sujeitas ao arredondamento de ponto flutuante. Não há
 uso de FFT/RMS, imposição de repouso no final, retirada da média da velocidade,
-ajustes polinomiais ou modificação das medições de origem. Duas amostras válidas bastam para
+ajustes polinomiais na aceleração/velocidade ou modificação das medições de origem. Duas amostras válidas bastam para
 calcular uma área.
 
 No instante inicial, o intervalo acumulado tem duração zero, portanto a integral

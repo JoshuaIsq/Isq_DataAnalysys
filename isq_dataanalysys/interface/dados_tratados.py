@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
 )
 
 from isq_dataanalysys import __version__
-from isq_dataanalysys.exportacao.csv_tratado import ler_csv_tratado
+from isq_dataanalysys.exportacao.csv_tratado import DadosTratados, ler_csv_tratado
 from .eixo_temporal import EixoDataHora, configurar_eixo_temporal
 from .exportacao import ExportacaoGraficos
 from .intervalo_temporal import PainelIntervaloTemporal, VinculoIntervalos
@@ -51,6 +51,7 @@ class TelaDadosTratados(ExportacaoGraficos, QMainWindow):
         painel = QFrame()
         controles = QVBoxLayout(painel)
         linha = QHBoxLayout()
+        self.layout_acoes = linha
         self.botao_abrir = QPushButton('Abrir CSV tratado')
         self.botao_abrir.clicked.connect(self.abrir_arquivo)
         linha.addWidget(self.botao_abrir)
@@ -89,14 +90,39 @@ class TelaDadosTratados(ExportacaoGraficos, QMainWindow):
     def importar_caminho(self, caminho):
         try:
             arquivo = ler_csv_tratado(caminho)
-            inicio_gravacao_s = float(arquivo.metadados.get('inicio_gravacao_s', 0.0))
-            if not np.isfinite(inicio_gravacao_s):
-                raise ValueError('A referência do início da gravação precisa ser finita.')
+            return self.carregar_dados(arquivo, caminho=caminho)
         except (OSError, ValueError, TypeError) as erro:
             QMessageBox.warning(self, 'Falha ao abrir CSV tratado', str(erro))
             return False
 
-        self.tempo = np.array(arquivo.tempo, dtype=float, copy=True)
+    def carregar_dados(self, arquivo, caminho=None):
+        """Exibe um resultado em memória com o mesmo fluxo de um CSV tratado.
+
+        Valida antes de substituir a janela e recebe cópias independentes. Não
+        cria arquivos temporários nem reaplica os tratamentos registrados.
+        """
+        if not isinstance(arquivo, DadosTratados):
+            raise ValueError('Informe um resultado de dados tratados válido.')
+        tempo = np.asarray(arquivo.tempo, dtype=float)
+        if (tempo.ndim != 1 or not len(tempo) or not np.isfinite(tempo).all()
+                or np.any(np.diff(tempo) <= 0)):
+            raise ValueError('O tempo precisa conter amostras finitas e crescentes.')
+        if (not hasattr(arquivo.dados, 'columns') or len(arquivo.dados) != len(tempo)
+                or not isinstance(arquivo.canais, dict) or not arquivo.canais
+                or list(arquivo.dados.columns) != list(arquivo.canais)
+                or not np.isfinite(arquivo.dados.to_numpy(dtype=float)).all()):
+            raise ValueError('As medições e os canais precisam corresponder ao tempo informado.')
+        for info in arquivo.canais.values():
+            if not isinstance(info, dict) or any(
+                not isinstance(info.get(campo), str) for campo in ('nome','unidade','eixo')
+            ):
+                raise ValueError('Cada canal precisa informar nome, unidade e eixo.')
+        if not isinstance(arquivo.metadados, dict):
+            raise ValueError('Os metadados precisam ser um dicionário.')
+        inicio_gravacao_s = float(arquivo.metadados.get('inicio_gravacao_s', 0.0))
+        if not np.isfinite(inicio_gravacao_s):
+            raise ValueError('A referência do início da gravação precisa ser finita.')
+        self.tempo = np.array(tempo, dtype=float, copy=True)
         self.df_sensores = arquivo.dados.copy(deep=True)
         self.canais = deepcopy(arquivo.canais)
         self.metadados_tratados = deepcopy(arquivo.metadados)
@@ -104,16 +130,19 @@ class TelaDadosTratados(ExportacaoGraficos, QMainWindow):
         self.inicio_gravacao_s = inicio_gravacao_s
         self.descricao_exportacao = str(self.metadados_tratados.get('descricao', ''))
         self.grandeza = self.metadados_tratados.get('modalidade', 'dados_tratados')
-        self.caminho_atual = Path(caminho)
+        self.caminho_atual = Path(caminho) if caminho is not None else None
         self._montar_canais()
         self._montar_graficos()
         self.painel_intervalo.definir_dados(self.tempo, inicio_gravacao_s=self.inicio_gravacao_s)
         self.aplicar_intervalo(self.painel_intervalo.limites_segundos)
         self.botao_exportar.setEnabled(True)
         descricao = self.descricao_exportacao or 'Valores e unidades preservados do CSV tratado.'
-        self.rotulo_origem.setText(f'{self.caminho_atual.name}\n{descricao}')
+        nome = self.caminho_atual.name if self.caminho_atual is not None else str(
+            self.metadados_tratados.get('titulo', 'Resultado em memória')
+        )
+        self.rotulo_origem.setText(f'{nome}\n{descricao}')
         self.rotulo_origem.setToolTip(self.descricao_exportacao)
-        self.setWindowTitle(f'Dados tratados — {self.caminho_atual.name} — v{__version__}')
+        self.setWindowTitle(f'Dados tratados — {nome} — v{__version__}')
         self.statusBar().showMessage(
             f'{len(self.tempo)} amostras | {len(self.canais)} canais | '
             f'{self.tempo[0]:g} a {self.tempo[-1]:g} s de gravação'

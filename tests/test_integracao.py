@@ -49,6 +49,14 @@ def texto_exportacao(caminho):
 
 
 class CalculoTests(unittest.TestCase):
+    def test_um_g_converte_para_m_s2_e_entrega_mm_s(self):
+        t=np.array([0.,1.,2.])
+        # Sem compensação de média neste ensaio de unidades: 1 g = 9,80665 m/s².
+        v=integrar_relativo(t,pd.DataFrame({1:[1.,1.,1.]}),'aceleracao')
+        d=integrar_relativo(t,v,'velocidade')
+        np.testing.assert_allclose(v[1],np.array([0.,9.80665,19.6133])*1000,atol=1e-9)
+        np.testing.assert_allclose(d[1],np.array([0.,4.903325,19.6133])*1000,atol=1e-9)
+
     def test_retira_somente_media_por_canal_e_preserva_entrada(self):
         t = np.array([10,10.5,11,11.5])
         dados = pd.DataFrame({4: [1.,2.,6.,8.], 9: [10.,20.,60.,80.]}, index=[20,21,22,23])
@@ -197,8 +205,11 @@ class FluxoTests(ArquivoMixin, unittest.TestCase):
         for janela in reversed(self.janelas):
             if shiboken6.isValid(janela):
                 janela.close()
+                if not janela.testAttribute(Qt.WidgetAttribute.WA_DeleteOnClose):
+                    janela.deleteLater()
         QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
         self.app.processEvents()
+        self.janelas.clear()
 
     def test_fluxo_temporal_independente_em_fft_e_rms_e_exportacoes(self):
         for modo in ('fft', 'rms'):
@@ -230,7 +241,8 @@ class FluxoTests(ArquivoMixin, unittest.TestCase):
             self.app.processEvents()
             self.assertTrue(vel.isVisible())
             self.assertTrue(desp.isVisible())
-            pd.testing.assert_frame_equal(desp.df_sensores, integrar_relativo(vel.tempo, vel.df_sensores[[1]], 'velocidade'))
+            pd.testing.assert_frame_equal(desp.df_deslocamento_integrado, integrar_relativo(vel.tempo, vel.df_sensores[[1]], 'velocidade'))
+            self.assertTrue(desp.correcao_rampa_ativa)
             pd.testing.assert_frame_equal(acm.df_sensores, original)
             for k, c in acm.curvas_lynx.items():
                 for a, b in zip(c.getOriginalDataset(), curvas[k]):
@@ -240,7 +252,7 @@ class FluxoTests(ArquivoMixin, unittest.TestCase):
                 fig = criar_figura_html(list(janela.graficos_eixos.values()))
                 if janela is not acm:
                     self.assertEqual(len(fig.data), 1)
-                    self.assertIn('início do intervalo', janela.windowTitle())
+                    self.assertIn('intervalo:', janela.descricao_exportacao)
                 with tempfile.TemporaryDirectory() as pasta:
                     with patch.object(QFileDialog, 'getExistingDirectory', return_value=pasta), patch.object(QMessageBox, 'information'):
                         janela.exportar_svg()
@@ -279,6 +291,7 @@ class FluxoTests(ArquivoMixin, unittest.TestCase):
         acm.restaurar_original()
         disp = vel.gerar_deslocamento()
         self.janelas.append(disp)
+        disp.checkbox_correcao_rampa.setChecked(False)
         np.testing.assert_allclose(disp.df_sensores, integral_referencia(vel.tempo, esperado_v), atol=1e-9)
         for janela in (vel, disp):
             self.assertEqual(janela.tratamentos_origem, tratamentos)
@@ -327,11 +340,12 @@ class FluxoTests(ArquivoMixin, unittest.TestCase):
         vel.checkboxes_canais[3].setChecked(False)
         disp = vel.gerar_deslocamento()
         self.janelas.append(disp)
-        np.testing.assert_allclose(disp.df_sensores,
+        np.testing.assert_allclose(disp.df_deslocamento_integrado,
                                    integral_referencia(vel.tempo, esperado_v[:,:2]), atol=1e-9)
         self.assertEqual(set(disp.medias_aceleracao), {1,2})
         self.assertTrue((vel.df_sensores.iloc[0] == 0).all())
-        self.assertTrue((disp.df_sensores.iloc[0] == 0).all())
+        self.assertTrue((disp.df_deslocamento_integrado.iloc[0] == 0).all())
+        np.testing.assert_allclose(disp.df_sensores.iloc[0],-disp.ajustes_rampa['intercepto_mm'],atol=1e-10)
         self.assertIn('sem retirar sua média',disp.descricao_exportacao)
         for janela in (vel,disp):
             with tempfile.TemporaryDirectory() as pasta:
@@ -465,7 +479,7 @@ class FluxoTests(ArquivoMixin, unittest.TestCase):
             salvar_html = FiguraHtml.write_html
 
             def verificar_svg(fig, *args, **kwargs):
-                self.assertIn('início do intervalo', fig._suptitle.get_text())
+                self.assertIn('intervalo:', fig._suptitle.get_text())
                 self.assertIn('= 0', fig._suptitle.get_text())
                 self.assertIn(unidade, fig.axes[0].get_ylabel())
                 self.assertEqual(sum(len(e.lines) for e in fig.axes), 1)
@@ -477,7 +491,7 @@ class FluxoTests(ArquivoMixin, unittest.TestCase):
                 return salvar_svg(fig, *args, **kwargs)
 
             def verificar_html(fig, *args, **kwargs):
-                self.assertIn('início do intervalo', fig.layout.title.text)
+                self.assertIn('intervalo:', fig.layout.title.text)
                 self.assertIn('= 0', fig.layout.title.text)
                 self.assertEqual(len(fig.data), 1)
                 self.assertIn(unidade, fig.layout.yaxis.title.text)

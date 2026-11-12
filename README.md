@@ -114,6 +114,13 @@ Veja as [garantias, limites e exemplos de deriva](docs/INTEGRACAO_ACELEROMETRIA.
 
 ### Intervalo em minutos e CSV tratado
 
+Na revisão **2026.11.12.1**, a janela de deslocamento oferece **Retirar reta do
+deslocamento**, marcada por padrão. O ajuste linear por mínimos quadrados é
+subtraído depois da segunda integração; pode ser desmarcado para comparar com
+a integral preservada. **Verificar por derivação** abre as derivadas e a comparação
+com a aceleração usada. A conversão g → m/s² → m/s → mm/s é automática.
+Veja [método, condições iniciais e limites da verificação](docs/CORRECAO_DESLOCAMENTO.md).
+
 A revisão **2026.11.11.1** permite avaliar um trecho em minutos nas janelas
 temporais, inclusive aceleração, velocidade e deslocamento. Por exemplo,
 **40 até 60 min → Aplicar intervalo**. As novas janelas herdam o recorte visual;

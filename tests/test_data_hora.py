@@ -136,9 +136,9 @@ class InterfaceDataHoraTests(ArquivoMixin, unittest.TestCase):
             np.testing.assert_array_equal(janela.tempo, tempo)
         pd.testing.assert_frame_equal(acm.df_original, original)
         pd.testing.assert_frame_equal(vel.df_sensores, integrar_relativo(tempo, original, "aceleracao"))
-        pd.testing.assert_frame_equal(desp.df_sensores, integrar_relativo(tempo, vel.df_sensores, "velocidade"))
+        pd.testing.assert_frame_equal(desp.df_deslocamento_integrado, integrar_relativo(tempo, vel.df_sensores, "velocidade"))
         self.assertTrue((vel.df_sensores.iloc[0] == 0).all())
-        self.assertTrue((desp.df_sensores.iloc[0] == 0).all())
+        self.assertTrue((desp.df_deslocamento_integrado.iloc[0] == 0).all())
 
     def test_exports_reais_svg_html_mantem_hora_local_zoom_e_snapshot(self):
         caminho = self.arquivo(["g"] * 3 + ["MPa"], alterar=lambda linhas: linhas[1].__setitem__(-1, "28/10/2026 15:55"))

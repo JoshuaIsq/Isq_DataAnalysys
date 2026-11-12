@@ -7,7 +7,7 @@ from unittest.mock import patch
 import numpy as np
 import pandas as pd
 import shiboken6
-from PySide6.QtCore import QCoreApplication,QEvent
+from PySide6.QtCore import QCoreApplication,QEvent,Qt
 from PySide6.QtWidgets import QApplication,QMessageBox
 from isq_dataanalysys.interface.intervalo_temporal import PainelIntervaloTemporal
 from isq_dataanalysys.interface.acelerometria import TelaLynxAcelerometria
@@ -97,9 +97,13 @@ class JanelasTests(ArquivoMixin,unittest.TestCase):
 
     def fechar(self):
         for janela in reversed(self.janelas):
-            if shiboken6.isValid(janela): janela.close()
+            if shiboken6.isValid(janela):
+                janela.close()
+                if not janela.testAttribute(Qt.WidgetAttribute.WA_DeleteOnClose):
+                    janela.deleteLater()
         QCoreApplication.sendPostedEvents(None,QEvent.Type.DeferredDelete)
         self.app.processEvents()
+        self.janelas.clear()
 
     def abrir_aceleracao(self):
         acm=TelaLynxAcelerometria()

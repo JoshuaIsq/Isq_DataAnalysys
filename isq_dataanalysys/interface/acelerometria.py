@@ -146,8 +146,8 @@ class TelaLynxAcelerometria(Tela):
         media = self.checkbox_media_aceleracao.isChecked()
         etapa = "retirar somente a média da aceleração → " if media else ""
         self.rotulo_metodo_integracao.setText(
-            f"Aceleração tratada → {etapa}integrar → mm/s; v₀ = 0.\n"
-            "Deslocamento integra a velocidade exibida, sem outra compensação."
+            f"Aceleração tratada → {etapa}m/s² (×9,80665) → integrar → mm/s (×1000); v₀ = 0.\n"
+            "Deslocamento: integrar a velocidade → opção de retirar a reta do deslocamento."
         )
         self.botao_velocidade.setToolTip(
             f"Abre outra janela em mm/s: {etapa}integrar todo o sinal temporal tratado, "
@@ -546,5 +546,6 @@ class TelaLynxAcelerometria(Tela):
             tratamentos=self.rotulo_ativos.text(),
             medias_aceleracao=None if medias is None else medias.to_dict(),
             intervalo_visualizacao=self.painel_intervalo.intervalo_exportacao(),
+            aceleracao_referencia=entrada,
         )
         return mostrar_resultado(self, janela)

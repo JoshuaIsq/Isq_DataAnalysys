@@ -224,7 +224,7 @@ class InterfaceCanaisTests(ArquivoMixin, unittest.TestCase):
         desp = vel.janelas_resultados[-1]
         self.janelas.append(desp)
         self.app.processEvents()
-        pd.testing.assert_frame_equal(desp.df_sensores, integrar_relativo(vel.tempo, vel.df_sensores, "velocidade"))
+        pd.testing.assert_frame_equal(desp.df_deslocamento_integrado, integrar_relativo(vel.tempo, vel.df_sensores, "velocidade"))
         self.assertTrue(all(janela.isVisible() for janela in (acm, vel, desp)))
         pd.testing.assert_frame_equal(acm.df_original, original)
         # Seleção dos dois Y com o mesmo nome, mantendo seus dados independentes.
@@ -259,7 +259,8 @@ class InterfaceCanaisTests(ArquivoMixin, unittest.TestCase):
         self.janelas.append(desp)
         self.assertEqual(desp.graficos_eixos[EIXO_DESCONHECIDO].getAxis("left").labelUnits, "mm")
         self.assertTrue(np.all(vel.df_sensores.iloc[0] == 0))
-        self.assertTrue(np.all(desp.df_sensores.iloc[0] == 0))
+        self.assertTrue(np.all(desp.df_deslocamento_integrado.iloc[0] == 0))
+        np.testing.assert_allclose(desp.df_sensores.iloc[0],-desp.ajustes_rampa['intercepto_mm'],atol=1e-10)
         acm.botao_rms.click()
         for janela in (acm, vel, desp):
             self.assertEqual(len(janela.plots_para_exportar()), 1)

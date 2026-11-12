@@ -10,7 +10,7 @@ from unittest.mock import patch
 import numpy as np
 import pandas as pd
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
-from PySide6.QtCore import QCoreApplication, QEvent
+from PySide6.QtCore import QCoreApplication, QEvent, Qt
 import shiboken6
 from plotly.graph_objects import Figure
 
@@ -50,8 +50,11 @@ class ExportacaoCsvFluxoTests(unittest.TestCase):
         for w in reversed(self.janelas):
             if shiboken6.isValid(w):
                 w.close()
+                if not w.testAttribute(Qt.WidgetAttribute.WA_DeleteOnClose):
+                    w.deleteLater()
         QCoreApplication.sendPostedEvents(None,QEvent.Type.DeferredDelete)
         self.app.processEvents()
+        self.janelas.clear()
 
     def abrir(self,classe):
         w=classe()
