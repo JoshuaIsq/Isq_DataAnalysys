@@ -124,20 +124,22 @@ de modo que a exportação continue coerente mesmo se o arquivo for movido ou ap
 Os vetores temporais, os filtros, as janelas RMS, as integrações e as condições
 iniciais continuam sendo calculados em segundos, sem aplicar a redução de horas
 aos dados numéricos. O CSV não é regravado. Os campos de recorte temporal da
-extensometria e da régua continuam recebendo segundos relativos à referência inicial do CSV.
+acelerometria, extensometria e régua recebem minutos relativos à referência inicial do CSV.
 Se a data inicial estiver ausente ou inválida, a leitura dos sinais continua e
 o eixo permanece em segundos, sem atribuir uma data presumida. Essa situação
 agora aparece explicitamente no painel de referência temporal, em vez de ocorrer
-silenciosamente. **Detalhes do horário** mostra o rótulo e o valor reais, incluindo
+silenciosamente. Na acelerometria e na régua, **Detalhes do horário** mostra o rótulo e o valor reais, incluindo
 caracteres que podem ficar ocultos no Excel, e o motivo da falha.
 
-O botão **Definir horário…** permite informar a data/hora **original** do arquivo,
+Na acelerometria e na régua, o botão **Definir horário…** permite informar a data/hora **original** do arquivo,
 por exemplo, `27/10/2026 14:45:00`. O painel deve então mostrar o horário local
 `27/10/2026 11:45:00`. Isso atualiza os eixos e as exportações da janela sem
 refazer filtros, alterar o zoom ou gravar o CSV. Novas janelas de velocidade e
 deslocamento recebem essa referência. Resultados que já estavam abertos mantêm
 a referência capturada quando foram criados. Cancelar ou informar uma data inválida
 preserva o estado anterior; importar outro CSV substitui a referência manual.
+Na extensometria, os botões de definição manual e detalhes foram removidos;
+a data continua sendo lida automaticamente do CSV com o desconto de três horas.
 
 A amostragem deve ser regular e crescente. Valores ausentes, não numéricos ou
 não finitos nos canais importados são recusados. Uma última linha incompleta

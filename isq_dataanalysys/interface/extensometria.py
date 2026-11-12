@@ -15,6 +15,8 @@ from .visualizacao_temporal import VisualizacaoTemporal
 
 
 class TelaLynxExtensometria(VisualizacaoTemporal, Tela):
+    REFERENCIA_EDITAVEL = False
+
     CORES = [
         "#1565C0", "#D55E00", "#18864B", "#8E44AD",
         "#A6761D", "#444444", "#009E73", "#E69F00",

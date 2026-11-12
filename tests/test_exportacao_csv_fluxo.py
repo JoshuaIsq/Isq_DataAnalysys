@@ -74,9 +74,9 @@ class ExportacaoCsvFluxoTests(unittest.TestCase):
 
     def test_aceleracao_velocidade_deslocamento_recorte_e_reabertura(self):
         acm=self.abrir(TelaLynxAcelerometria)
-        acm.aplicar_configuracao({'calibracao':2})
+        acm.aplicar_configuracao({'offset':2})
         fonte=acm.df_sensores.copy(deep=True)
-        acm.painel_intervalo.definir_intervalo_segundos(2400,3600)
+        acm.aplicar_intervalo_temporal((2400,3600))
         acm.checkboxes_eixos[(1,'Y')].setChecked(False)
         vel=acm.gerar_velocidade()
         disp=vel.gerar_deslocamento()
@@ -122,7 +122,7 @@ class ExportacaoCsvFluxoTests(unittest.TestCase):
 
     def test_html_timestamp_todas_linhas_e_intervalo_exato(self):
         acm=self.abrir(TelaLynxAcelerometria)
-        acm.painel_intervalo.definir_intervalo_segundos(2400,3600)
+        acm.aplicar_intervalo_temporal((2400,3600))
         vel=acm.gerar_velocidade()
         self.janelas.append(vel)
         self.app.processEvents()
@@ -155,7 +155,9 @@ class ExportacaoCsvFluxoTests(unittest.TestCase):
 
     def test_rms_log_preserva_zeros_lineares_no_csv(self):
         acm=self.abrir(TelaLynxAcelerometria)
-        acm.aplicar_configuracao({'calibracao':0})
+        # Sinal sintético nulo; calibração não faz parte da tela de acelerometria.
+        acm.df_original.loc[:, :]=0
+        acm.aplicar_configuracao({})
         acm.campo_janela_rms.setValue(2)
         acm.botao_rms.setChecked(True)
         acm.checkbox_log_rms.setChecked(True)

@@ -13,6 +13,9 @@ from isq_dataanalysys.leitores.metadados import ler_referencia_temporal
 
 
 class Tela(ExportacaoGraficos, QMainWindow):
+    FILTROS_DISPONIVEIS = ("calibracao", "offset", "passa_alta", "passa_baixa", "media_movel", "outliers")
+    REFERENCIA_EDITAVEL = True
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Analise de dados")
@@ -67,39 +70,25 @@ class Tela(ExportacaoGraficos, QMainWindow):
         self.abrir = QPushButton("Abrir arquivo")
         self.exportar = QPushButton("Exportar gráfico")
 
-        #Controle dos filtros e calibrações
-        self.controle_calibração = ControleFiltros("Fator de calibração",
-            valor_inicial=1.0)
-
-        self.controle_offset = ControleFiltros("Offset",
-            valor_inicial=0.0)
-
-        self.controle_passa_baixa = ControleFiltros("Passa-baixa (Hz)",
-            valor_inicial=0.0,)
-
-        self.controle_passa_alta = ControleFiltros("Passa-alta (Hz)",
-            valor_inicial=0.0,)
-
-        self.controle_media_movel = ControleFiltros("Média móvel",
-            valor_inicial=0.0)
-
-        self.controle_outliers = ControleFiltros("Remover outliers",
-            valor_inicial=0.0)
-
         layout_controles.addWidget(self.abrir, 0, 0)
         layout_controles.addWidget(self.exportar, 1, 0)
 
-        # Segunda coluna: calibração e offset.
-        layout_controles.addWidget(self.controle_calibração, 0, 2)
-        layout_controles.addWidget(self.controle_offset, 1, 2)
-
-        # Terceira coluna: passa-alta, passa-baixa e média móvel.
-        layout_controles.addWidget(self.controle_passa_alta, 0, 3)
-        layout_controles.addWidget(self.controle_passa_baixa, 1, 3)
-        layout_controles.addWidget(self.controle_media_movel, 2, 3)
-
-        # Quarta coluna: remoção de outliers.
-        layout_controles.addWidget(self.controle_outliers, 0, 1)
+        # Cada modalidade cria somente os controles que utiliza.
+        definicoes = {
+            "calibracao": ("controle_calibração", "Fator de calibração", 1.0, 0, 2),
+            "offset": ("controle_offset", "Offset", 0.0, 1, 2),
+            "passa_alta": ("controle_passa_alta", "Passa-alta (Hz)", 0.0, 0, 3),
+            "passa_baixa": ("controle_passa_baixa", "Passa-baixa (Hz)", 0.0, 1, 3),
+            "media_movel": ("controle_media_movel", "Média móvel", 0.0, 2, 3),
+            "outliers": ("controle_outliers", "Remover outliers", 0.0, 0, 1),
+        }
+        self.controles_filtros = {}
+        for nome in self.FILTROS_DISPONIVEIS:
+            atributo, rotulo, inicial, linha, coluna = definicoes[nome]
+            controle = ControleFiltros(rotulo, valor_inicial=inicial)
+            setattr(self, atributo, controle)
+            self.controles_filtros[nome] = controle
+            layout_controles.addWidget(controle, linha, coluna)
 
         # Distribuição do espaço entre as colunas.
         layout_controles.setColumnStretch(0, 0)
@@ -110,29 +99,20 @@ class Tela(ExportacaoGraficos, QMainWindow):
         self.botao_restaurar = QPushButton("Restaurar original")
         layout_controles.addWidget(self.botao_restaurar, 2, 0)
         self.botao_restaurar.clicked.connect(self.restaurar_original)
-        bloco_janela = QVBoxLayout()
-        self.campo_janela_outliers = QSpinBox()
-        self.campo_janela_outliers.setRange(3, 10001)
-        self.campo_janela_outliers.setSingleStep(2)
-        self.campo_janela_outliers.setValue(31)
-        bloco_janela.addWidget(self.campo_janela_outliers)
-        bloco_janela.addWidget(QLabel("Janela de outliers (amostras)"))
-        layout_controles.addLayout(bloco_janela, 1, 1)
+        if "outliers" in self.controles_filtros:
+            bloco_janela = QVBoxLayout()
+            self.campo_janela_outliers = QSpinBox()
+            self.campo_janela_outliers.setRange(3, 10001)
+            self.campo_janela_outliers.setSingleStep(2)
+            self.campo_janela_outliers.setValue(31)
+            bloco_janela.addWidget(self.campo_janela_outliers)
+            bloco_janela.addWidget(QLabel("Janela de outliers (amostras)"))
+            layout_controles.addLayout(bloco_janela, 1, 1)
         self.rotulo_ativos = QLabel("Tratamentos ativos: nenhum")
         self.rotulo_ativos.setWordWrap(True)
         layout_controles.addWidget(self.rotulo_ativos, 3, 0, 1, 4)
 
         layout_direito.addWidget(painel_controles)
-
-        #Dicionario com os componentes da interface
-        self.controles_filtros = {
-            "calibracao": self.controle_calibração,
-            "offset": self.controle_offset,
-            "passa_alta": self.controle_passa_alta,
-            "passa_baixa": self.controle_passa_baixa,
-            "media_movel": self.controle_media_movel,
-            "outliers": self.controle_outliers,
-        }
 
         self.config_filtros = {}
 
@@ -153,8 +133,8 @@ class Tela(ExportacaoGraficos, QMainWindow):
         self.exportar.setMenu(self.menu_exportar)
 
         self.criar_graficos(layout_direito)
-        self.painel_referencia = PainelReferenciaTemporal()
-        self.layout_controles.addWidget(self.painel_referencia, 8, 0, 1, 4)
+        self.painel_referencia = PainelReferenciaTemporal(permitir_edicao=self.REFERENCIA_EDITAVEL)
+        self.layout_controles.addWidget(self.painel_referencia, 9, 0, 1, 4)
         self.painel_referencia.alterado.connect(self.definir_referencia_manual)
 
     def carregar_referencia_temporal(self, caminho):

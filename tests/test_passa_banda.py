@@ -6,12 +6,12 @@ import unittest
 from unittest.mock import patch
 import numpy as np
 import pandas as pd
-from PySide6.QtCore import QCoreApplication, QEvent, QTimer
+from PySide6.QtCore import QCoreApplication, QEvent
 from PySide6.QtWidgets import QApplication, QMessageBox, QPushButton
 
 from isq_dataanalysys.interface.acelerometria import TelaLynxAcelerometria
 from isq_dataanalysys.interface.extensometria import TelaLynxExtensometria
-from isq_dataanalysys.interface.passa_banda import DialogoPassaBanda
+from isq_dataanalysys.interface.passa_banda import ControlePassaBanda
 from isq_dataanalysys.exportacao.html import criar_figura_html
 from isq_dataanalysys.processamento.sinais import Processamento
 from tests.apoio import ArquivoMixin
@@ -94,46 +94,25 @@ class InterfacePassaBandaTests(ArquivoMixin, unittest.TestCase):
     def criar_tela(self):
         tela = TelaLynxAcelerometria()
         self.janelas.append(tela)
-        self.assertFalse(tela.botao_passa_banda.isEnabled())
+        self.assertFalse(tela.controle_passa_banda.botao_aplicar.isEnabled())
         self.assertTrue(tela.importar_caminho(self.arquivo(["g"] * 6)))
         tela.resize(1330, 625)
         tela.show()
         self.app.processEvents()
         return tela
 
-    def dialogo(self, tela, acao):
-        erros = []
-
-        def interagir():
-            dialogo = self.app.activeModalWidget()
-            try:
-                self.assertIsInstance(dialogo, DialogoPassaBanda)
-                acao(dialogo)
-            except BaseException as erro:
-                erros.append(erro)
-            finally:
-                if dialogo is not None and dialogo.isVisible():
-                    dialogo.reject()
-
-        self.assertTrue(tela.botao_passa_banda.isEnabled())
-        QTimer.singleShot(0, interagir)
-        tela.botao_passa_banda.click()
-        if erros:
-            raise erros[0]
-
     def aplicar(self, tela, inferior=30, superior=100):
-        def preencher(dialogo):
-            dialogo.campo_inferior.setValue(inferior)
-            dialogo.campo_superior.setValue(superior)
-            dialogo.botao_aplicar.click()
-        self.dialogo(tela, preencher)
+        controle = tela.controle_passa_banda
+        controle.campo_inferior.setValue(inferior)
+        controle.campo_superior.setValue(superior)
+        controle.botao_aplicar.click()
+        self.assertIsNone(self.app.activeModalWidget())
 
     def test_aplicar_so_a_banda_e_reaplicar_sem_acumular(self):
         tela = self.criar_tela()
         original = tela.df_original.copy(deep=True)
         # Valores digitados nos outros campos, sem clicar Aplicar, não são usados.
-        tela.controle_passa_alta.campo.setValue(40)
-        tela.controle_passa_baixa.campo.setValue(80)
+        tela.controle_offset.campo.setValue(40)
         self.aplicar(tela)
         self.assertEqual(tela.config_filtros, {"passa_banda": (30, 100)})
         self.assertIn("Passa-banda: 30–100 Hz", tela.rotulo_ativos.text())
@@ -142,47 +121,33 @@ class InterfacePassaBandaTests(ArquivoMixin, unittest.TestCase):
         self.aplicar(tela)
         pd.testing.assert_frame_equal(tela.df_sensores, primeiro)
         pd.testing.assert_frame_equal(tela.df_original, original)
-        self.assertTrue(tela.botao_passa_banda.isVisible())
-        self.assertFalse(tela.botao_passa_banda.visibleRegion().isEmpty())
+        self.assertTrue(tela.controle_passa_banda.botao_aplicar.isVisible())
+        self.assertFalse(tela.controle_passa_banda.botao_aplicar.visibleRegion().isEmpty())
         self.aviso.assert_not_called()
 
-    def test_cancelar_e_parametros_invalidos_preservam_estado(self):
+    def test_editar_sem_aplicar_e_parametros_invalidos_preservam_estado(self):
         tela = self.criar_tela()
         self.aplicar(tela)
         dados = tela.df_sensores.copy(deep=True)
-
-        def cancelar(dialogo):
-            self.assertEqual(dialogo.cortes(), (30, 100))
-            dialogo.campo_inferior.setValue(60)
-            dialogo.botao_cancelar.click()
-        self.dialogo(tela, cancelar)
-        self.aplicar(tela, 100, 20)
-        self.aviso.assert_called_once()
-        self.assertEqual(tela.config_filtros, {"passa_banda": (30, 100)})
+        tela.controle_passa_banda.campo_inferior.setValue(60)
         pd.testing.assert_frame_equal(tela.df_sensores, dados)
+        self.assertEqual(tela.config_filtros, {"passa_banda": (30, 100)})
+        for cortes in ((100, 20), (0, 40), (10, 500)):
+            self.aplicar(tela, *cortes)
+            self.assertEqual(tela.config_filtros, {"passa_banda": (30, 100)})
+            pd.testing.assert_frame_equal(tela.df_sensores, dados)
+        self.assertEqual(self.aviso.call_count, 3)
 
-    def test_filtros_explicitos_e_desativacao_apenas_da_banda(self):
+    def test_offset_e_desativacao_apenas_da_banda(self):
         tela = self.criar_tela()
-        tela.controle_calibração.campo.setValue(2)
-        tela.controle_calibração.botao.click()
-        tela.controle_passa_alta.campo.setValue(40)
-        tela.controle_passa_alta.botao.click()
+        tela.controle_offset.campo.setValue(10)
+        tela.controle_offset.botao.click()
         anteriores = tela.df_sensores.copy(deep=True)
         self.aplicar(tela)
-        self.assertEqual(tela.config_filtros, {
-            "calibracao": 2, "passa_alta": 40, "passa_banda": (30, 100),
-        })
-        tela.controle_passa_baixa.campo.setValue(80)
-        tela.controle_passa_baixa.botao.click()
-        self.assertEqual(tela.config_filtros["passa_banda"], (30, 100))
-        self.assertEqual(tela.config_filtros["passa_baixa"], 80)
-        esperado, _ = Processamento.aplicar(tela.tempo, tela.df_original, {
-            "calibracao": 2, "passa_alta": 40, "passa_baixa": 80,
-        })
-        self.dialogo(tela, lambda d: d.botao_desativar.click())
-        self.assertNotIn("passa_banda", tela.config_filtros)
-        pd.testing.assert_frame_equal(tela.df_sensores, esperado)
-        self.assertFalse(np.allclose(tela.df_sensores, anteriores))
+        self.assertEqual(tela.config_filtros, {"offset": 10, "passa_banda": (30, 100)})
+        tela.controle_passa_banda.botao_desativar.click()
+        self.assertEqual(tela.config_filtros, {"offset": 10})
+        pd.testing.assert_frame_equal(tela.df_sensores, anteriores)
         self.aviso.assert_not_called()
 
     def test_restaurar_e_reimportar_limpam_banda(self):
@@ -191,7 +156,7 @@ class InterfacePassaBandaTests(ArquivoMixin, unittest.TestCase):
         tela.botao_rms.click()
         tela.botao_restaurar.click()
         self.assertEqual(tela.config_filtros, {})
-        self.assertEqual(tela.botao_passa_banda.text(), "Passa-banda…")
+        self.assertEqual(tela.controle_passa_banda.cortes(), (0, 0))
         self.assertFalse(tela.botao_rms.isChecked())
         pd.testing.assert_frame_equal(tela.df_sensores, tela.df_original)
         self.aplicar(tela)
@@ -221,7 +186,7 @@ class InterfacePassaBandaTests(ArquivoMixin, unittest.TestCase):
     def test_extensometria_mantem_controles_sem_passa_banda(self):
         tela = TelaLynxExtensometria()
         self.janelas.append(tela)
-        self.assertIsNone(tela.findChild(QPushButton, "passa_banda"))
+        self.assertIsNone(tela.findChild(ControlePassaBanda))
         self.assertIn("passa_alta", tela.controles_filtros)
         self.assertIn("passa_baixa", tela.controles_filtros)
 

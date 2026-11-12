@@ -218,7 +218,7 @@ class FluxoTests(ArquivoMixin, unittest.TestCase):
             acm.show()
             self.assertFalse(acm.botao_velocidade.isEnabled())
             acm.importar_caminho(self.arquivo(['g']*6, encoding='cp1252'))
-            acm.aplicar_configuracao({'calibracao': 2, 'media_movel': 3})
+            acm.aplicar_configuracao({'offset': 3, 'passa_banda': (10, 100)})
             getattr(acm, 'botao_'+modo).click()
             acm.checkboxes_eixos[(1, 'Y')].setChecked(False)
             acm.checkboxes_canais[2].setChecked(False)

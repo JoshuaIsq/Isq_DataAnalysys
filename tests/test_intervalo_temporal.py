@@ -118,7 +118,7 @@ class JanelasTests(ArquivoMixin,unittest.TestCase):
         acm=self.abrir_aceleracao()
         original=acm.df_sensores.copy(deep=True)
         curvas={c:np.array(v.getOriginalDataset()[1],copy=True) for c,v in acm.curvas_lynx.items()}
-        acm.painel_intervalo.definir_intervalo_segundos(.2,.8)
+        acm.aplicar_intervalo_temporal((.2,.8))
         vel=acm.gerar_velocidade()
         self.janelas.append(vel)
         disp=vel.gerar_deslocamento()
@@ -142,11 +142,11 @@ class JanelasTests(ArquivoMixin,unittest.TestCase):
 
     def test_fft_desabilita_intervalo_e_retorno_temporal_restaura(self):
         acm=self.abrir_aceleracao()
-        acm.painel_intervalo.definir_intervalo_segundos(.2,.8)
+        acm.aplicar_intervalo_temporal((.2,.8))
         for modo in ('fft','rms'):
             getattr(acm,'botao_'+modo).setChecked(True)
             self.app.processEvents()
-            self.assertEqual(acm.painel_intervalo.isEnabled(),modo!='fft')
+            self.assertEqual(acm.campo_tempo_inicio.isEnabled(),modo!='fft')
             if modo=='fft': self.assertIsNone(acm.intervalo_exportacao())
             else: self.assertEqual(acm.intervalo_exportacao(),(.2,.8))
         acm.botao_rms.setChecked(False)

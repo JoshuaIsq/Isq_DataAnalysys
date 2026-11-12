@@ -33,10 +33,11 @@ somado ao tempo de cada amostra. Exemplo: `28/10/2026 15:55` no CSV aparece como
 intervalo visível. A FFT continua com frequência em Hz.
 
 Após importar, o painel **Início CSV → local** confirma o horário utilizado.
-**Detalhes do horário** mostra o campo e o valor efetivamente lidos. Se o formato
-não for reconhecido, a tela avisa e oferece **Definir horário…**: informe o horário
-original do CSV; o desconto de três horas continua automático. O ajuste manual
-vale para a janela atual, suas exportações e os novos resultados gerados a partir dela.
+Na acelerometria e na régua, **Detalhes do horário** mostra o campo e o valor
+lidos, e **Definir horário…** permite informar o horário original do CSV; o
+desconto de três horas continua automático. O ajuste manual vale para a janela
+atual, suas exportações e os novos resultados gerados a partir dela.
+A extensometria usa somente o horário lido do CSV, sem esses dois botões.
 
 O ajuste independe do fuso do computador. Os cálculos usam os segundos originais;
 o CSV e os valores medidos são preservados. Sem uma data inicial válida, o eixo
@@ -71,22 +72,30 @@ Veja o [guia da régua potenciométrica](docs/REGUA_POTENCIOMETRICA.md).
 
 ### Passa-banda na acelerometria
 
-Depois de abrir um CSV, clique em **Passa-banda…**. Preencha **Low cutoff — corte
-inferior** e **High cutoff — corte superior**, em Hz, e clique em **Aplicar**.
-Os cortes devem obedecer `0 < inferior < superior < frequência de amostragem / 2`.
+Na revisão **2026.11.12.2**, a acelerometria apresenta apenas **Offset** e
+**Passa-banda** como controles de tratamento, além de FFT, RMS e Gerar velocidade.
+Calibração, outliers, média móvel, passa-alta e passa-baixa continuam disponíveis
+nas telas de extensometria e régua.
+
+Os campos **Low cutoff** e **High cutoff** ficam sempre visíveis no painel à
+direita. Depois de abrir o CSV, preencha os dois cortes em Hz e clique em
+**Aplicar** no bloco Passa-banda. Use `0 < inferior < superior < fs / 2`.
 Por exemplo, um arquivo de 200 Hz exige corte superior abaixo de 100 Hz.
+Digitar valores não aplica o filtro. Cortes inválidos preservam o último sinal
+tratado e exibem um aviso. **Desativar** retira somente a banda, preservando o
+Offset. **Restaurar original** e importar outro CSV limpam os tratamentos.
+O processamento parte sempre do original: Offset, depois Passa-banda.
+RMS, FFT, integração e exportação usam o resultado tratado.
 
-O passa-banda é independente: não ativa passa-alta, passa-baixa nem outros
-tratamentos. Os filtros existentes continuam disponíveis e só entram no cálculo
-quando aplicados pelo usuário. Se já estavam ativos, permanecem ativos. Digitar
-valores e cancelar não muda o sinal. Para retirar apenas esse filtro, reabra seu
-botão e clique em **Desativar passa-banda**. **Restaurar original** e a importação
-de outro arquivo limpam todos os tratamentos.
-
-O processamento sempre parte dos dados originais, na ordem: calibração, outliers,
-offset, passa-banda, passa-alta, passa-baixa e média móvel (somente os ativos).
-RMS, FFT, integração e exportação usam o resultado tratado. A extensometria mantém
-seus controles atuais e não ganha o botão passa-banda.
+**Escala mínima**, **máxima**, **Tempo inicial (min)** e **final** usam o mesmo
+layout da extensometria. **Aplicar escala e tempo** aplica a mesma escala vertical
+a todos os eixos e limita a vista ao trecho escolhido. **Ajustar aos dados**
+restaura o intervalo completo e calcula a escala pelos canais selecionados.
+A escala é lembrada separadamente para sinal em g, FFT em g, RMS em mg e RMS
+logarítmico. Os limites do RMS logarítmico são digitados em mg e devem ser positivos.
+Em FFT, somente os campos de tempo ficam desabilitados. Voltar ao tempo preserva
+o intervalo anteriormente escolhido. Esses controles não recortam os cálculos de
+integração nem alteram as amostras; as janelas derivadas herdam o intervalo.
 
 O cálculo usa Butterworth em SOS com `Processamento.ORDEM = 4` e aplicação em ida
 e volta (`sosfiltfilt`). No projeto passa-banda do SciPy, esse parâmetro gera um
@@ -123,7 +132,8 @@ Veja [método, condições iniciais e limites da verificação](docs/CORRECAO_DE
 
 A revisão **2026.11.11.1** permite avaliar um trecho em minutos nas janelas
 temporais, inclusive aceleração, velocidade e deslocamento. Por exemplo,
-**40 até 60 min → Aplicar intervalo**. As novas janelas herdam o recorte visual;
+**40 até 60 min → Aplicar intervalo** nas janelas de resultados; na acelerometria,
+use **Tempo inicial/final → Aplicar escala e tempo**. As novas janelas herdam o recorte visual;
 os cálculos de integração permanecem sobre o sinal completo.
 
 **Exportar → CSV tratado** salva canais selecionados e amostras do intervalo,

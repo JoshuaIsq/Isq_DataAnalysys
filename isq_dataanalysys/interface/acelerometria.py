@@ -11,13 +11,16 @@ from isq_dataanalysys.leitores.lynx import LinhaFinalIncompleta, aviso_unidades
 from isq_dataanalysys.processamento.sinais import Processamento
 from isq_dataanalysys.processamento.integracao import integrar_relativo, retirar_media_aceleracao
 from isq_dataanalysys.interface.integracao import TelaIntegracao, mostrar_resultado
-from isq_dataanalysys.interface.passa_banda import DialogoPassaBanda
+from isq_dataanalysys.interface.passa_banda import ControlePassaBanda
 from isq_dataanalysys import __version__ as VERSAO
 from isq_dataanalysys.interface.eixo_temporal import EixoDataHora, configurar_eixo_temporal
-from .intervalo_temporal import PainelIntervaloTemporal, VinculoIntervalos
+from .intervalo_temporal import VinculoIntervalos
+from .visualizacao_acelerometria import VisualizacaoAcelerometria
 
 
-class TelaLynxAcelerometria(Tela):
+class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
+    FILTROS_DISPONIVEIS = ("offset",)
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle(f"Análise de dados - Lynx Acelerometria — v{VERSAO}")
@@ -47,57 +50,38 @@ class TelaLynxAcelerometria(Tela):
         self.rotulo_importacao.setWordWrap(True)
         self.rotulo_importacao.setStyleSheet("color: #6b4e16; background: #fff4dc; padding: 4px;")
         self.rotulo_importacao.hide()
-        self.layout_controles.addWidget(self.rotulo_importacao, 6, 0, 1, 4)
-        self.painel_intervalo = PainelIntervaloTemporal()
-        self.painel_intervalo.intervalo_alterado.connect(self.aplicar_intervalo_temporal)
-        self.layout_controles.addWidget(self.painel_intervalo, 7, 0, 1, 4)
+        self.layout_controles.addWidget(self.rotulo_importacao, 8, 0, 1, 4)
+        self._intervalo_temporal = None
+        self._escalas_modos = {}
+        self.criar_limites_visualizacao(linha_inicial=6)
 
     def criar_controle_passa_banda(self):
-        # Mantém os controles dentro da largura de 1330 px usada pela tela.
         self.layout_controles.setHorizontalSpacing(16)
-        self.botao_passa_banda = QPushButton("Passa-banda…")
-        self.botao_passa_banda.setObjectName("passa_banda")
-        self.botao_passa_banda.setEnabled(False)
-        self.botao_passa_banda.setToolTip(
-            "Define Low cutoff e High cutoff em Hz para os canais carregados. "
-            "Passa-alta e passa-baixa só atuam se você também os aplicar."
-        )
-        self.layout_controles.addWidget(self.botao_passa_banda, 2, 2)
-        self.botao_passa_banda.clicked.connect(self.abrir_passa_banda)
+        self.layout_controles.addWidget(self.controle_offset, 0, 1)
+        self.controle_passa_banda = ControlePassaBanda()
+        self.layout_controles.addWidget(self.controle_passa_banda, 0, 3, 3, 1)
+        self.controle_passa_banda.botao_aplicar.clicked.connect(self.aplicar_passa_banda)
+        self.controle_passa_banda.botao_desativar.clicked.connect(
+            lambda: self.aplicar_passa_banda(desativar=True))
 
-    def abrir_passa_banda(self):
+    def aplicar_passa_banda(self, desativar=False):
         if self.df_original is None:
-            return
-        dialogo = DialogoPassaBanda(
-            self.info_processamento["fs"],
-            self.config_filtros.get("passa_banda"),
-            parent=self,
-        )
-
-        def aplicar(desativar=False):
-            proposta = self.config_filtros.copy()
-            if desativar:
-                proposta.pop("passa_banda", None)
-            else:
-                proposta["passa_banda"] = dialogo.cortes()
-            # Só fecha após um cálculo válido. Um erro preserva dados e configuração.
-            if self.aplicar_configuracao(proposta):
-                dialogo.accept()
-
-        dialogo.botao_aplicar.clicked.connect(lambda: aplicar())
-        dialogo.botao_desativar.clicked.connect(lambda: aplicar(desativar=True))
-        dialogo.exec()
-        dialogo.deleteLater()
+            return False
+        proposta = self.config_filtros.copy()
+        if desativar:
+            proposta.pop("passa_banda", None)
+        else:
+            proposta["passa_banda"] = self.controle_passa_banda.cortes()
+        return self.aplicar_configuracao(proposta)
 
     def atualizar_indicacao_filtros(self):
         super().atualizar_indicacao_filtros()
         cortes = self.config_filtros.get("passa_banda")
+        self.controle_passa_banda.mostrar_cortes(cortes)
         if cortes is None:
-            self.botao_passa_banda.setText("Passa-banda…")
             return
         inferior, superior = cortes
         descricao = f"Passa-banda: {inferior:g}–{superior:g} Hz"
-        self.botao_passa_banda.setText(descricao)
         texto = self.rotulo_ativos.text()
         if texto == "Tratamentos ativos: nenhum":
             texto = "Tratamentos ativos: " + descricao
@@ -219,7 +203,7 @@ class TelaLynxAcelerometria(Tela):
         self.tempo = tempo
         self.df_original = canais.copy()
         self.df_sensores = canais.copy()
-        self.painel_intervalo.definir_dados(tempo)
+        self.reiniciar_limites_visualizacao()
         self.sensores_lynx = sensores
         self.info_arquivo = info
         self.caminho_atual = Path(caminho)
@@ -233,7 +217,7 @@ class TelaLynxAcelerometria(Tela):
         self.botao_fft.setChecked(False)
         self.botao_fft.blockSignals(False)
         self.botao_velocidade.setEnabled(True)
-        self.botao_passa_banda.setEnabled(True)
+        self.controle_passa_banda.configurar_amostragem(fs)
         self.botao_fft.setEnabled(True)
         self.botao_rms.setEnabled(True)
         self.campo_janela_rms.setEnabled(True)
@@ -459,17 +443,7 @@ class TelaLynxAcelerometria(Tela):
         for eixo, grafico in self.graficos_eixos.items():
             grafico.setVisible(eixo in presentes)
 
-        for grafico in self.graficos_eixos.values():
-            grafico.enableAutoRange()
-
-        self.painel_intervalo.setEnabled(not fft and len(self.tempo) > 1)
-        if fft and len(tempo_plot) > 1:
-            self.vinculo_intervalos.definir_intervalo((float(tempo_plot[0]),float(tempo_plot[-1])))
-        elif not fft:
-            intervalo = (self.painel_intervalo.intervalo_exportacao()
-                         or self.painel_intervalo.limites_segundos)
-            if intervalo is not None and intervalo[0] < intervalo[1]:
-                self.aplicar_intervalo_temporal(intervalo)
+        self.atualizar_limites_visualizacao()
 
         fs = self.info_processamento["fs"]
         modo = "Sinal no tempo"
@@ -500,23 +474,10 @@ class TelaLynxAcelerometria(Tela):
             if log:
                 modo += "; log (zeros sem ponto)"
 
-        substituidas = sum(
-            self.info_processamento.get("substituicoes", {}).values()
-        )
         self.statusBar().showMessage(
             f"{self.caminho_atual.name} | {fs:g} Hz | "
-            f"{len(self.tempo)} amostras | {modo} | "
-            f"{substituidas} substituições de outliers"
+            f"{len(self.tempo)} amostras | {modo}"
         )
-
-
-    def intervalo_exportacao(self):
-        return None if self.botao_fft.isChecked() else self.painel_intervalo.intervalo_exportacao()
-
-    def aplicar_intervalo_temporal(self, intervalo):
-        if self.botao_fft.isChecked():
-            return
-        self.vinculo_intervalos.definir_intervalo(intervalo)
 
     def gerar_velocidade(self):
         if self.df_sensores is None:
@@ -545,7 +506,7 @@ class TelaLynxAcelerometria(Tela):
             inicio_arquivo=self.inicio_arquivo,
             tratamentos=self.rotulo_ativos.text(),
             medias_aceleracao=None if medias is None else medias.to_dict(),
-            intervalo_visualizacao=self.painel_intervalo.intervalo_exportacao(),
+            intervalo_visualizacao=self._intervalo_temporal,
             aceleracao_referencia=entrada,
         )
         return mostrar_resultado(self, janela)

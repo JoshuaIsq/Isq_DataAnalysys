@@ -2,11 +2,16 @@
 
 ## Comparar um trecho da gravação
 
-Nas janelas de aceleração, velocidade e deslocamento, preencha **Avaliar de** e
-**até**, em **minutos desde o início da gravação**, e clique em **Aplicar intervalo**.
-Por exemplo, `40` e `60` mostram os dados entre 40 e 60 minutos. Os campos
-respeitam os limites disponíveis; o início precisa ser menor que o fim.
-**Intervalo completo** restaura a gravação inteira.
+Na acelerometria, use **Tempo inicial (min)** e **final**, junto de **Escala
+mínima** e **máxima**, e clique em **Aplicar escala e tempo**. O botão **Ajustar
+aos dados** restaura o intervalo inteiro e ajusta a escala aos canais selecionados.
+Na extensometria e na régua, os controles são equivalentes.
+
+Nas janelas de velocidade e deslocamento, preencha **Avaliar de** e **até** e
+clique em **Aplicar intervalo**. **Intervalo completo** restaura a gravação inteira.
+Todos esses tempos são **minutos desde o início da gravação**. Por exemplo,
+`40` e `60` mostram os dados entre 40 e 60 minutos. Os campos respeitam os limites
+disponíveis; o início precisa ser menor que o fim.
 
 As janelas derivadas herdam o intervalo visual da origem. O ajuste altera somente
 a visualização e a exportação: **não recorta o sinal usado na integração nem muda
@@ -27,8 +32,9 @@ ao passar o mouse sobre uma curva. As amostras completas permanecem no HTML para
 permitir ampliar a análise interativa. O HTML é autocontido, sem depender de internet.
 
 Sem data inicial reconhecida, os eixos continuam em tempo decorrido. Nesse caso,
-use **Definir horário…** na janela Lynx para informar o horário original do CSV
-antes de gerar resultados e exportações. O programa não inventa timestamps.
+a acelerometria e a régua permitem **Definir horário…** antes de gerar resultados
+e exportações. A extensometria usa exclusivamente o horário do CSV. O programa
+não inventa timestamps.
 
 ## Exportar CSV tratado
 

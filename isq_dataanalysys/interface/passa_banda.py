@@ -1,54 +1,50 @@
-"""Dois cortes em Hz; o cálculo e a confirmação ficam na tela de acelerometria."""
+"""Cortes do passa-banda diretamente no painel da acelerometria."""
 
 from PySide6.QtWidgets import (
-    QDialog, QDoubleSpinBox, QFormLayout, QHBoxLayout, QLabel, QPushButton,
-    QVBoxLayout,
+    QWidget, QDoubleSpinBox, QGridLayout, QHBoxLayout, QLabel, QPushButton,
 )
 
 
-class DialogoPassaBanda(QDialog):
-    def __init__(self, fs, cortes=None, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Passa-banda — Acelerometria")
-        self.setObjectName("dialogo_passa_banda")
-        self.setMinimumWidth(390)
-        layout = QVBoxLayout(self)
-        formulario = QFormLayout()
-
+class ControlePassaBanda(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setObjectName("controle_passa_banda")
+        layout = QGridLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(QLabel("Passa-banda"), 0, 0, 1, 2)
         self.campo_inferior = QDoubleSpinBox()
         self.campo_superior = QDoubleSpinBox()
         for campo in (self.campo_inferior, self.campo_superior):
             campo.setDecimals(8)
             campo.setRange(0, 100000000)
             campo.setSuffix(" Hz")
+            campo.setFixedWidth(150)
         self.campo_inferior.setObjectName("low_cutoff")
         self.campo_superior.setObjectName("high_cutoff")
-        if cortes is not None:
-            self.campo_inferior.setValue(cortes[0])
-            self.campo_superior.setValue(cortes[1])
-        formulario.addRow("Low cutoff — corte inferior:", self.campo_inferior)
-        formulario.addRow("High cutoff — corte superior:", self.campo_superior)
-        layout.addLayout(formulario)
-
-        limite = QLabel(
-            f"Amostragem: {fs:g} Hz.\n"
-            f"Use 0 < corte inferior < corte superior < {fs / 2:g} Hz."
-        )
-        limite.setWordWrap(True)
-        layout.addWidget(limite)
-
+        layout.addWidget(QLabel("Low cutoff:"), 1, 0)
+        layout.addWidget(self.campo_inferior, 1, 1)
+        layout.addWidget(QLabel("High cutoff:"), 2, 0)
+        layout.addWidget(self.campo_superior, 2, 1)
         self.botao_aplicar = QPushButton("Aplicar")
-        self.botao_aplicar.setDefault(True)
-        self.botao_desativar = QPushButton("Desativar passa-banda")
-        self.botao_desativar.setEnabled(cortes is not None)
-        self.botao_cancelar = QPushButton("Cancelar")
-        self.botao_cancelar.clicked.connect(self.reject)
-        linha = QHBoxLayout()
-        linha.addWidget(self.botao_desativar)
-        linha.addStretch()
-        linha.addWidget(self.botao_cancelar)
-        linha.addWidget(self.botao_aplicar)
-        layout.addLayout(linha)
+        self.botao_aplicar.setObjectName("aplicar_passa_banda")
+        self.botao_desativar = QPushButton("Desativar")
+        self.botao_desativar.setEnabled(False)
+        botoes = QHBoxLayout()
+        botoes.addWidget(self.botao_aplicar)
+        botoes.addWidget(self.botao_desativar)
+        layout.addLayout(botoes, 3, 0, 1, 2)
+        layout.setColumnStretch(2, 1)
+        self.setEnabled(False)
 
     def cortes(self):
         return self.campo_inferior.value(), self.campo_superior.value()
+
+    def configurar_amostragem(self, fs):
+        self.setToolTip(f"Use 0 < Low cutoff < High cutoff < {fs / 2:g} Hz.")
+        self.setEnabled(True)
+
+    def mostrar_cortes(self, cortes):
+        inferior, superior = cortes if cortes is not None else (0, 0)
+        self.campo_inferior.setValue(inferior)
+        self.campo_superior.setValue(superior)
+        self.botao_desativar.setEnabled(cortes is not None)

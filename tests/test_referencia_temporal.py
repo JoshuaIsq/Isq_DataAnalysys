@@ -106,13 +106,17 @@ class PainelHorarioTests(ArquivoMixin, unittest.TestCase):
             self.assertTrue(janela.painel_referencia.isVisible())
             self.assertIn("27/10/2026 11:45:00", janela.painel_referencia.rotulo.text())
             self.assertIn("27/10/2026 14:45:00", janela.painel_referencia.rotulo.text())
-            janela.painel_referencia.botao_detalhes.click()
-            self.assertIn("123456789", self.informacao.call_args.args[2])
+            if classe is TelaLynxAcelerometria:
+                janela.painel_referencia.botao_detalhes.click()
+                self.assertIn("123456789", self.informacao.call_args.args[2])
+            else:
+                self.assertFalse(hasattr(janela.painel_referencia, "botao_detalhes"))
+                self.assertFalse(hasattr(janela.painel_referencia, "botao_definir"))
             figura = criar_figura_html(janela.plots_para_exportar())
             self.assertEqual(figura.data[0].x[0], "2026-10-27T11:45:00.123456")
 
     def test_horario_manual_atualiza_tela_html_svg_e_novas_integracoes(self):
-        for classe in (TelaLynxAcelerometria, TelaLynxExtensometria):
+        for classe in (TelaLynxAcelerometria,):
             janela = self.abrir(classe, ["StartTime UTC:", "formato desconhecido"])
             self.assertIn("não reconhecida", janela.painel_referencia.rotulo.text())
             self.assertIn("formato desconhecido", janela.painel_referencia.detalhes())
@@ -156,7 +160,7 @@ class PainelHorarioTests(ArquivoMixin, unittest.TestCase):
             self.aviso.assert_not_called()
 
     def test_cancelar_ou_informar_data_invalida_preserva_referencia_e_dados(self):
-        janela = self.abrir(TelaLynxExtensometria, ["StartTime UTC:", "27/10/2026 14:45"])
+        janela = self.abrir(TelaLynxAcelerometria, ["StartTime UTC:", "27/10/2026 14:45"])
         original = janela.df_sensores.copy(deep=True)
         info = janela.painel_referencia.info.copy()
         for retorno in (("", False), ("31/02/2026 14:45", True)):
