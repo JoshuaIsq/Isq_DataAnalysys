@@ -16,6 +16,7 @@ from isq_dataanalysys import __version__ as VERSAO
 from isq_dataanalysys.interface.eixo_temporal import EixoDataHora, configurar_eixo_temporal
 from .intervalo_temporal import VinculoIntervalos
 from .visualizacao_acelerometria import VisualizacaoAcelerometria
+from .layout_acelerometria import montar_lateral_acelerometria
 
 
 class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
@@ -54,6 +55,11 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
         self._intervalo_temporal = None
         self._escalas_modos = {}
         self.criar_limites_visualizacao(linha_inicial=6)
+        montar_lateral_acelerometria(self)
+
+    def mostrar_metodo_integracao(self):
+        QMessageBox.information(self, "Sobre a integração", self.rotulo_metodo_integracao.text()
+                                + "\n\n" + self.checkbox_media_aceleracao.toolTip())
 
     def criar_controle_passa_banda(self):
         self.layout_controles.setHorizontalSpacing(16)
@@ -253,6 +259,7 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
             row=linha, col=0, title=titulo,
             axisItems={"bottom": EixoDataHora(orientation="bottom")},
         )
+        grafico.setTitle(titulo, color="#202428")
         grafico.setLabel("bottom", "Tempo", units="s")
         grafico.setLabel("left", "Aceleração", units="g")
         grafico.showGrid(x=True, y=True, alpha=0.25)
@@ -262,7 +269,7 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
             grafico.getAxis(lado).setTextPen("#333333")
         grafico.getAxis("left").enableAutoSIPrefix(False)
         # Margens iguais alinham os painéis; os limites X são sincronizados numericamente.
-        grafico.getAxis("left").setWidth(85)
+        grafico.getAxis("left").setWidth(52)
         self.graficos_eixos[eixo] = grafico
         self.vinculo_intervalos.adicionar_plot(grafico)
 

@@ -13,7 +13,7 @@ python .\main.py
 ```
 
 Escolha **Lynx → Acelerometria**, **Extensometria** ou **Régua potenciométrica**. Acelerometria mantém
-**Gerar velocidade** na faixa azul e **Gerar deslocamento** na janela de velocidade.
+**Gerar velocidade** no bloco Processamento de Sinal e **Gerar deslocamento** na janela de velocidade.
 
 Para identificar a instalação aberta:
 
@@ -70,6 +70,22 @@ restaurar o original e exportar SVG/HTML com a referência de data/hora local.
 O valor inicial é preservado; o Offset só é aplicado quando solicitado.
 Veja o [guia da régua potenciométrica](docs/REGUA_POTENCIOMETRICA.md).
 
+### Interface da acelerometria
+
+Na versão **2026.11.12.3**, os gráficos ocupam toda a altura da área à direita.
+A barra estreita à esquerda alterna duas páginas no mesmo painel lateral:
+
+- **Ícone de pasta — Controles:** Arquivo e Dados, Filtros e Tratamento,
+  Processamento de Sinal, Visualização e Escala.
+- **Segundo ícone — Canais:** seleção dos sensores/eixos, avisos de importação
+  e referência de horário do CSV.
+
+Somente o painel lateral muda. Os dados, filtros, canais marcados e zoom dos
+gráficos são preservados. Em janelas baixas, a lateral tem rolagem para alcançar
+todos os controles. O ícone de informação ao lado de **Retirar média da
+aceleração** explica o método de integração. Esta revisão é de apresentação;
+não altera os filtros, as unidades nem o cálculo de velocidade/deslocamento.
+
 ### Passa-banda na acelerometria
 
 Na revisão **2026.11.12.2**, a acelerometria apresenta apenas **Offset** e
@@ -77,8 +93,8 @@ Na revisão **2026.11.12.2**, a acelerometria apresenta apenas **Offset** e
 Calibração, outliers, média móvel, passa-alta e passa-baixa continuam disponíveis
 nas telas de extensometria e régua.
 
-Os campos **Low cutoff** e **High cutoff** ficam sempre visíveis no painel à
-direita. Depois de abrir o CSV, preencha os dois cortes em Hz e clique em
+Os campos **Low cutoff** e **High cutoff** ficam no bloco **Filtros e Tratamento**
+da página Controles. Depois de abrir o CSV, preencha os dois cortes em Hz e clique em
 **Aplicar** no bloco Passa-banda. Use `0 < inferior < superior < fs / 2`.
 Por exemplo, um arquivo de 200 Hz exige corte superior abaixo de 100 Hz.
 Digitar valores não aplica o filtro. Cortes inválidos preservam o último sinal

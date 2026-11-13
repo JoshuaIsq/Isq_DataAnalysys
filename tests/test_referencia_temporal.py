@@ -103,6 +103,9 @@ class PainelHorarioTests(ArquivoMixin, unittest.TestCase):
     def test_identificacao_automatica_nas_duas_modalidades_e_detalhes_copiaveis(self):
         for classe in (TelaLynxAcelerometria, TelaLynxExtensometria):
             janela = self.abrir(classe, ["StartTime (UTC+0):", "27/10/2026 14:45:00.123456789"])
+            if classe is TelaLynxAcelerometria:
+                janela.botao_aba_canais.click()
+                self.app.processEvents()
             self.assertTrue(janela.painel_referencia.isVisible())
             self.assertIn("27/10/2026 11:45:00", janela.painel_referencia.rotulo.text())
             self.assertIn("27/10/2026 14:45:00", janela.painel_referencia.rotulo.text())
