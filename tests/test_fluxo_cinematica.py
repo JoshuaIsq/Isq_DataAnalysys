@@ -64,7 +64,7 @@ class FluxoCinematicaTests(ArquivoMixin, unittest.TestCase):
         for modo, unidade, funcao in (('fft','g',Processamento.fft_ac), ('psd','g²/Hz',Processamento.psd_ac)):
             getattr(a, 'botao_'+modo).click()
             self.assertFalse(a.campo_tempo_inicio.isEnabled())
-            self.assertEqual(a.graficos_eixos['X'].getAxis('left').labelUnits, unidade)
+            self.assertEqual(a.graficos_eixos[1].getAxis('left').labelUnits, unidade)
             f, dados, _ = funcao(a.tempo, filtrado)
             for (n,eixo), curva in a.curvas_lynx.items():
                 canal = a.sensores_lynx[n-1][eixo]
@@ -76,7 +76,7 @@ class FluxoCinematicaTests(ArquivoMixin, unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'FFT/PSD'): a.dados_para_csv()
         a.botao_psd.click()
         self.assertEqual(a.intervalo_exportacao(), (.2,.8))
-        self.assertEqual(a.graficos_eixos['X'].getAxis('left').labelUnits, 'mm/s²')
+        self.assertEqual(a.graficos_eixos[1].getAxis('left').labelUnits, 'mm/s²')
         a.aplicar_configuracao({'passa_banda':(1,30)})
         np.testing.assert_allclose(a.df_sensores, filtrado*9810)
         pd.testing.assert_frame_equal(a.df_original, original)

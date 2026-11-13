@@ -176,7 +176,7 @@ class InterfacePassaBandaTests(ArquivoMixin, unittest.TestCase):
         np.testing.assert_array_equal(figura.data[0].y, tratado[1])
         tela.botao_rms.click()
         self.assertLess(tela.curvas_lynx[(1, "X")].getOriginalDataset()[1].max(), 10)
-        self.assertEqual(tela.graficos_eixos["X"].getAxis("left").labelUnits, "mg")
+        self.assertEqual(tela.graficos_eixos[1].getAxis("left").labelUnits, "mg")
         tela.botao_fft.click()
         x, y = tela.curvas_lynx[(1, "X")].getOriginalDataset()
         self.assertLess(y[np.argmin(abs(x - 50))], .01)

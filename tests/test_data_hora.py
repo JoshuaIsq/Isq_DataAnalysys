@@ -211,7 +211,7 @@ class InterfaceDataHoraTests(ArquivoMixin, unittest.TestCase):
     def test_reimportar_sem_data_volta_a_segundos_e_dias_mudam_corretamente(self):
         caminho = self.arquivo(["g"] * 3, alterar=lambda linhas: linhas[1].__setitem__(-1, "01/01/2026 01:00:00"))
         acm = self.abrir(TelaLynxAcelerometria, caminho)
-        self.verificar_eixo(acm.graficos_eixos["X"], "31/12/2025 22:00:00")
+        self.verificar_eixo(acm.graficos_eixos[1], "31/12/2025 22:00:00")
         outro = self.arquivo(["g"] * 3, alterar=lambda linhas: linhas[1].__setitem__(-1, ""))
         self.assertTrue(acm.importar_caminho(outro))
         for plot in acm.plots_para_exportar():

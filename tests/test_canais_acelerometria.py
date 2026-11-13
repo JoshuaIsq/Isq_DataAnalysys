@@ -16,6 +16,7 @@ from matplotlib.figure import Figure
 from plotly.graph_objects import Figure as FiguraHtml
 
 from tests.apoio import ArquivoMixin
+from isq_dataanalysys.exportacao.html import criar_figura_html
 from isq_dataanalysys.interface.acelerometria import TelaLynxAcelerometria
 from isq_dataanalysys.leitores.acelerometria import EIXO_DESCONHECIDO, ler_lynx_acelerometria
 from isq_dataanalysys.leitores.extensometria import ler_lynx_extensometria
@@ -171,6 +172,33 @@ class InterfaceCanaisTests(ArquivoMixin, unittest.TestCase):
             np.testing.assert_array_equal(curva.getOriginalDataset()[1], tela.df_sensores[canal])
         self.assertEqual(sorted(encontrados), sorted(tela.df_sensores.columns))
 
+    def test_paineis_por_sensor_e_rgb_por_eixo_em_todos_os_modos(self):
+        # Ordem intercalada no CSV: agrupa pela identificação, não pela coluna.
+        acm = self.tela(['g']*6, ['ACC 1 - Z', 'ACC 2 - X', 'ACC 1 - X',
+                                'ACC 2 - Z', 'ACC 1 - Y', 'ACC 2 - Y'])
+        original = acm.df_sensores.copy(deep=True)
+        cores = {'X': '#ff0000', 'Y': '#00ff00', 'Z': '#0000ff'}
+        for modo in (None, 'fft', 'psd', 'rms'):
+            if modo:
+                getattr(acm, 'botao_'+modo).click()
+            self.assertEqual(len(acm.plots_para_exportar()), 2)
+            for numero, sensor in enumerate(acm.sensores_lynx, 1):
+                plot = acm.graficos_eixos[numero]
+                self.assertIn(acm.info_arquivo['rotulos_sensores'][numero-1], plot.titleLabel.text)
+                self.assertEqual(len(plot.listDataItems()), 3)
+                for eixo in sensor:
+                    curva = acm.curvas_lynx[(numero,eixo)]
+                    self.assertIn(curva, plot.listDataItems())
+                    self.assertEqual(curva.opts['pen'].color().name(), cores[eixo])
+            figura = criar_figura_html(acm.plots_para_exportar())
+            self.assertEqual(len(figura.data), 6)
+            self.assertEqual(len(figura.layout.annotations), 2)
+        pd.testing.assert_frame_equal(acm.df_sensores, original)
+        acm.checkboxes_eixos[(1,'Y')].setChecked(False)
+        self.assertFalse(acm.curvas_lynx[(1,'Y')].isVisible())
+        self.assertTrue(acm.curvas_lynx[(2,'Y')].isVisible())
+        self.aviso.assert_not_called()
+
     def exportar_e_conferir(self, janela, esperados):
         salvar_svg, salvar_html = Figure.savefig, FiguraHtml.write_html
         chamadas = []
@@ -247,9 +275,8 @@ class InterfaceCanaisTests(ArquivoMixin, unittest.TestCase):
     def test_sem_eixo_plota_filtra_integra_e_exporta_sem_inventar_xyz(self):
         acm = self.tela(["g"] * 4)
         self.verificar_curvas(acm)
-        self.assertTrue(acm.graficos_eixos[EIXO_DESCONHECIDO].isVisible())
-        self.assertTrue(all(not acm.graficos_eixos[eixo].isVisible() for eixo in "XYZ"))
-        self.assertEqual(len(acm.plots_para_exportar()), 1)
+        self.assertEqual(len(acm.plots_para_exportar()), 4)
+        self.assertTrue(all(EIXO_DESCONHECIDO in sensor for sensor in acm.sensores_lynx))
         self.assertTrue(acm.aplicar_configuracao({"passa_banda": (30, 100)}))
         self.verificar_curvas(acm)
         acm.botao_converter.click()
@@ -269,14 +296,14 @@ class InterfaceCanaisTests(ArquivoMixin, unittest.TestCase):
         np.testing.assert_allclose(desp.df_sensores.iloc[0],desp.df_integrado.iloc[0]-desp.ajustes['c0'],atol=1e-10)
         acm.botao_rms.click()
         for janela in (acm, vel, desp):
-            self.assertEqual(len(janela.plots_para_exportar()), 1)
+            self.assertEqual(len(janela.plots_para_exportar()), 4 if janela is acm else 1)
             self.exportar_e_conferir(janela, (1, 2, 3, 4))
         self.aviso.assert_not_called()
 
     def test_y_isolado_reimportacao_e_selecao_nao_deixam_curvas_antigas(self):
         acm = self.tela(["g"], ["ACC 1 - Y"])
         self.verificar_curvas(acm)
-        self.assertEqual([e for e, plot in acm.graficos_eixos.items() if plot.isVisible()], ["Y"])
+        self.assertEqual([e for e, plot in acm.graficos_eixos.items() if plot.isVisible()], [1])
         acm.botao_converter.click()
         vel_y = acm.gerar_velocidade()
         self.janelas.append(vel_y)
@@ -288,8 +315,8 @@ class InterfaceCanaisTests(ArquivoMixin, unittest.TestCase):
         self.assertFalse(acm.curvas_lynx[(2, EIXO_DESCONHECIDO)].isVisible())
         self.assertTrue(acm.importar_caminho(self.arquivo(["g"] * 3, ["ACC 2 - Z", "ACC 2 - X", "ACC 2 - Y"])))
         self.verificar_curvas(acm)
-        self.assertFalse(acm.graficos_eixos[EIXO_DESCONHECIDO].isVisible())
-        self.assertEqual(len(acm.plots_para_exportar()), 3)
+        self.assertEqual(list(acm.graficos_eixos), [1])
+        self.assertEqual(len(acm.plots_para_exportar()), 1)
         acm.botao_converter.click()
         vel = acm.gerar_velocidade()
         self.janelas.append(vel)

@@ -182,11 +182,11 @@ class PainelHorarioTests(ArquivoMixin, unittest.TestCase):
         with patch.object(QInputDialog, "getText", return_value=("27/10/2026 14:45", True)):
             janela.painel_referencia.botao_definir.click()
         self.assertTrue(janela.botao_fft.isChecked())
-        self.assertEqual(janela.graficos_eixos["X"].getAxis("bottom").labelUnits, "Hz")
+        self.assertEqual(janela.graficos_eixos[1].getAxis("bottom").labelUnits, "Hz")
         for antes, depois in zip((x, y), janela.curvas_lynx[(1, "X")].getOriginalDataset()):
             np.testing.assert_array_equal(antes, depois)
         janela.botao_fft.click()
-        self.assertEqual(janela.graficos_eixos["X"].getAxis("bottom").tickStrings([0], 1, 1), ["27/10/2026 11:45:00"])
+        self.assertEqual(janela.graficos_eixos[1].getAxis("bottom").tickStrings([0], 1, 1), ["27/10/2026 11:45:00"])
 
 
 if __name__ == "__main__":

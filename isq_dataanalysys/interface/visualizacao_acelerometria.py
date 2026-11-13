@@ -1,4 +1,4 @@
-"""Os mesmos campos da extensometria, aplicados aos painéis de cada eixo."""
+"""Os mesmos campos da extensometria, aplicados aos painéis de cada sensor."""
 import numpy as np
 from PySide6.QtWidgets import QMessageBox
 

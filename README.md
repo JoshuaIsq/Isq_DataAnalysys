@@ -72,6 +72,12 @@ Veja o [guia da régua potenciométrica](docs/REGUA_POTENCIOMETRICA.md).
 
 ### Interface da acelerometria
 
+Desde **2026.11.13.3**, cada sensor tem seu próprio gráfico, reunindo os seus
+eixos: **X vermelho, Y verde e Z azul**. O agrupamento e as cores se mantêm
+no sinal temporal, FFT, PSD e RMS, inclusive nas exportações dos gráficos.
+Canais sem eixo identificado ficam em cinza, sem atribuir um eixo inexistente.
+A seleção de sensores/eixos e os cálculos permanecem os mesmos.
+
 Na versão **2026.11.12.3**, os gráficos ocupam toda a altura da área à direita.
 A barra estreita à esquerda alterna duas páginas no mesmo painel lateral:
 

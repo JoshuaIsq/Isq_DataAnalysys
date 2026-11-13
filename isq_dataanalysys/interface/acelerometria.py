@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QCheckBox, QFr
                                QPushButton, QDoubleSpinBox, QLabel, QFileDialog, QMessageBox,)
 from isq_dataanalysys.interface.base import Tela
 from isq_dataanalysys.leitores.acelerometria import (
-    EIXOS, EIXO_DESCONHECIDO, ler_lynx_acelerometria,
+    EIXOS, ler_lynx_acelerometria,
 )
 from isq_dataanalysys.leitores.lynx import LinhaFinalIncompleta, aviso_unidades
 from isq_dataanalysys.processamento.sinais import Processamento
@@ -292,6 +292,7 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
         self.campo_janela_rms.setRange(2 / fs, len(tempo) / fs)
         self.checkbox_log_rms.setEnabled(False)
         self.recriar_sensores(sensores)
+        self.recriar_graficos_sensores()
         avisos = info["avisos"]
         self.rotulo_importacao.setText(
             f"{len(canais.columns)} canais em g importados; {len(avisos)} aviso(s). "
@@ -311,12 +312,20 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
         self.grafico.setBackground("w")
         self.graficos_eixos = {}
         self.vinculo_intervalos = VinculoIntervalos()
-        for linha, eixo in enumerate("XYZ"):
-            self.adicionar_grafico_eixo(eixo, linha)
+        self.adicionar_grafico_sensor(0, 'Sensores', 0)
         layout_direito.addWidget(self.grafico, 1)
 
-    def adicionar_grafico_eixo(self, eixo, linha):
-        titulo = eixo if eixo == EIXO_DESCONHECIDO else f"Eixo {eixo}"
+    def recriar_graficos_sensores(self):
+        self.vinculo_intervalos.limpar()
+        self.curvas_lynx.clear()
+        self.grafico.clear()
+        # Nome compartilhado com os serviços de escala/exportação. Nesta tela,
+        # as chaves são os números dos sensores, não os eixos físicos.
+        self.graficos_eixos = {}
+        for numero, titulo in enumerate(self.info_arquivo['rotulos_sensores'], 1):
+            self.adicionar_grafico_sensor(numero, titulo, numero - 1)
+
+    def adicionar_grafico_sensor(self, numero, titulo, linha):
         grafico = self.grafico.addPlot(
             row=linha, col=0, title=titulo,
             axisItems={"bottom": EixoDataHora(orientation="bottom")},
@@ -325,14 +334,14 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
         grafico.setLabel("bottom", "Tempo", units="s")
         grafico.setLabel("left", "Aceleração", units="g")
         grafico.showGrid(x=True, y=True, alpha=0.25)
-        grafico.addLegend(colCount=4, offset=(10, 5), labelTextColor="#333333")
+        grafico.addLegend(colCount=3, offset=(10, 5), labelTextColor="#333333")
         for lado in ("left", "bottom"):
             grafico.getAxis(lado).setPen("#555555")
             grafico.getAxis(lado).setTextPen("#333333")
         grafico.getAxis("left").enableAutoSIPrefix(False)
         # Margens iguais alinham os painéis; os limites X são sincronizados numericamente.
         grafico.getAxis("left").setWidth(52)
-        self.graficos_eixos[eixo] = grafico
+        self.graficos_eixos[numero] = grafico
         self.vinculo_intervalos.adicionar_plot(grafico)
 
     def recriar_sensores(self, sensores):
@@ -474,18 +483,14 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
             rotulo, unidade = "Aceleração", self.unidade_aceleracao
             titulo_modo = "sinal no tempo"
 
-        if (any(EIXO_DESCONHECIDO in sensor for sensor in self.sensores_lynx)
-                and EIXO_DESCONHECIDO not in self.graficos_eixos):
-            self.adicionar_grafico_eixo(EIXO_DESCONHECIDO, 3)
-
         self.curvas_lynx.clear()
 
-        for eixo, grafico in self.graficos_eixos.items():
+        for numero, grafico in self.graficos_eixos.items():
             grafico.clear()
             grafico.setLogMode(x=False, y=log)
-            titulo_eixo = eixo if eixo == EIXO_DESCONHECIDO else f"Eixo {eixo}"
+            titulo_sensor = self.info_arquivo['rotulos_sensores'][numero - 1]
             grafico.setTitle(
-                f"{titulo_eixo} — {titulo_modo}",
+                f"{titulo_sensor} — {titulo_modo}",
                 color="#333333",
             )
             grafico.setLabel("left", rotulo, units=unidade)
@@ -494,7 +499,7 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
             if fft or psd:
                 grafico.setLabel("bottom", "Frequência", units="Hz")
 
-        cores = ["#1565C0", "#D55E00", "#18864B", "#8E44AD"]
+        cores = {'X': '#ff0000', 'Y': '#00ff00', 'Z': '#0000ff'}
 
         for numero, sensor in enumerate(self.sensores_lynx, start=1):
             for eixo, n in sensor.items():
@@ -503,11 +508,11 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
                 if log:
                     valores = np.where(valores > 0, valores, np.nan)
 
-                curva = self.graficos_eixos[eixo].plot(
+                curva = self.graficos_eixos[numero].plot(
                     tempo_plot,
                     valores,
-                    pen=pg.mkPen(cores[(numero - 1) % len(cores)], width=1),
-                    name=f"Canal {n} — {self.info_arquivo['nomes'][n]}",
+                    pen=pg.mkPen(cores.get(eixo, '#666666'), width=1),
+                    name=f"Canal {n} — {eixo}: {self.info_arquivo['nomes'][n]}",
                     connect="finite",
                 )
                 if log:
@@ -515,10 +520,6 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
                 self.curvas_lynx[(numero, eixo)] = curva
 
         self.atualizar_visibilidade()
-        presentes = {e for sensor in self.sensores_lynx for e in sensor}
-        for eixo, grafico in self.graficos_eixos.items():
-            grafico.setVisible(eixo in presentes)
-
         self.atualizar_limites_visualizacao()
 
         fs = self.info_processamento["fs"]

@@ -76,7 +76,7 @@ def executar(app):
                 assert all(w.isVisible() for w in (acm, vel, desp))
                 assert vel.graficos_eixos['X'].getAxis('left').labelUnits == 'mm/s'
                 assert desp.graficos_eixos['X'].getAxis('left').labelUnits == 'mm'
-                assert acm.graficos_eixos['X'].getAxis('left').labelUnits == 'mm/s²'
+                assert acm.graficos_eixos[1].getAxis('left').labelUnits == 'mm/s²'
                 regua_path = Path(pasta) / 'regua.csv'
                 with regua_path.open('w', encoding='utf-8-sig', newline='') as arquivo:
                     linhas = csv.writer(arquivo, delimiter=';')

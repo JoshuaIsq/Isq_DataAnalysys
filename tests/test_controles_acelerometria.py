@@ -79,7 +79,7 @@ class ControlesTests(ArquivoMixin, unittest.TestCase):
         pd.testing.assert_frame_equal(dados, original.iloc[480:721].reset_index(drop=True))
         self.assertEqual(metadata["intervalo_avaliacao_s"], [2400, 3600])
         figura = criar_figura_html(acm.plots_para_exportar())
-        for i in ("", "2", "3"):
+        for i in ["" if n == 1 else str(n) for n in range(1, len(acm.graficos_eixos) + 1)]:
             self.assertEqual(list(figura.layout["yaxis" + i].range), [-4, 6])
             self.assertEqual(list(figura.layout["xaxis" + i].range),
                              ["2026-10-28T09:40:00.000000", "2026-10-28T10:00:00.000000"])
@@ -88,7 +88,7 @@ class ControlesTests(ArquivoMixin, unittest.TestCase):
 
     def test_limites_invalidos_preservam_vista_e_tempos_limitados_ao_csv(self):
         acm = self.abrir(longa=True)
-        anterior = acm.graficos_eixos["X"].viewRange()
+        anterior = acm.graficos_eixos[1].viewRange()
         acm.campo_tempo_inicio.setValue(-1)
         acm.campo_tempo_fim.setValue(10000)
         self.assertEqual(acm.campo_tempo_inicio.value(), 0)
@@ -100,7 +100,7 @@ class ControlesTests(ArquivoMixin, unittest.TestCase):
         acm.campo_tempo_inicio.setValue(60)
         acm.campo_tempo_fim.setValue(40)
         self.assertFalse(acm.aplicar_visualizacao())
-        np.testing.assert_array_equal(acm.graficos_eixos["X"].viewRange(), anterior)
+        np.testing.assert_array_equal(acm.graficos_eixos[1].viewRange(), anterior)
         self.assertIsNone(acm.intervalo_exportacao())
         self.assertEqual(self.aviso.call_count, 2)
 
