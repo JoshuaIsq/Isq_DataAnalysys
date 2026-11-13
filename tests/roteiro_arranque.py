@@ -74,8 +74,8 @@ def executar(app):
                 desp = vel.janelas_resultados[0]
                 app.processEvents()
                 assert all(w.isVisible() for w in (acm, vel, desp))
-                assert vel.graficos_eixos['X'].getAxis('left').labelUnits == 'mm/s'
-                assert desp.graficos_eixos['X'].getAxis('left').labelUnits == 'mm'
+                assert vel.graficos_eixos[1].getAxis('left').labelUnits == 'mm/s'
+                assert desp.graficos_eixos[1].getAxis('left').labelUnits == 'mm'
                 assert acm.graficos_eixos[1].getAxis('left').labelUnits == 'mm/s²'
                 regua_path = Path(pasta) / 'regua.csv'
                 with regua_path.open('w', encoding='utf-8-sig', newline='') as arquivo:

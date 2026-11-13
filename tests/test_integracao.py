@@ -250,7 +250,7 @@ class FluxoTests(ArquivoMixin, unittest.TestCase):
                 for a, b in zip(c.getOriginalDataset(), curvas[k]):
                     np.testing.assert_array_equal(a, b)
             for janela, unidade in ((acm, 'g' if modo == 'fft' else 'g²/Hz' if modo == 'psd' else 'mm/s²'), (vel, 'mm/s'), (desp, 'mm')):
-                self.assertEqual(janela.graficos_eixos[1 if janela is acm else 'X'].getAxis('left').labelUnits, unidade)
+                self.assertEqual(janela.graficos_eixos[1].getAxis('left').labelUnits, unidade)
                 fig = criar_figura_html(list(janela.graficos_eixos.values()))
                 if janela is not acm:
                     self.assertEqual(len(fig.data), 1)
@@ -445,7 +445,7 @@ class FluxoTests(ArquivoMixin, unittest.TestCase):
         for janela, unidade in ((vel, 'mm/s'), (desp, 'mm')):
             janela.checkboxes_canais[2].setChecked(False)
             janela.checkboxes_canais[3].setChecked(False)
-            janela.graficos_eixos['X'].setXRange(.2, .8, padding=0)
+            janela.graficos_eixos[1].setXRange(.2, .8, padding=0)
             self.app.processEvents()
             salvar_svg = Figure.savefig
             salvar_html = FiguraHtml.write_html

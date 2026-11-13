@@ -197,6 +197,7 @@ def montar_lateral_acelerometria(tela):
     integracao.addWidget(tela.botao_info_integracao)
     integracao.addStretch()
     layout.addLayout(integracao)
+    layout.addWidget(tela.botao_unificado)
     tela.rotulo_metodo_integracao.setParent(processamento)
     tela.rotulo_metodo_integracao.hide()
     blocos.addWidget(processamento, 2, 0)

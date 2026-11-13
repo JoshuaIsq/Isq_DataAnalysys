@@ -180,10 +180,9 @@ class TelaDadosTratados(ExportacaoGraficos, QMainWindow):
                  'µm/m': 'Deformação', 'mm/m': 'Deformação'}
         for numero, (canal, info) in enumerate(self.canais.items()):
             unidade, eixo = info['unidade'], info.get('eixo', '') or ''
-            grupo = (unidade, eixo)
+            rotulo = nomes.get(unidade, 'Valor')
+            grupo, titulo = self.grupo_do_canal(canal, info, rotulo)
             if grupo not in grupos:
-                rotulo = nomes.get(unidade, 'Valor')
-                titulo = f'{rotulo} — Eixo {eixo}' if eixo else rotulo
                 plot = self.grafico.addPlot(
                     row=len(grupos), col=0,
                     axisItems={'bottom': EixoDataHora(orientation='bottom')},
@@ -205,12 +204,19 @@ class TelaDadosTratados(ExportacaoGraficos, QMainWindow):
                 self.graficos_eixos[grupo] = plot
             curva = grupos[grupo].plot(
                 self.tempo, self.df_sensores[canal].to_numpy(),
-                pen=pg.mkPen(pg.intColor(numero, hues=max(len(self.canais), 3)), width=1),
+                pen=self.caneta_do_canal(canal, info, numero),
                 name=f"Canal {canal} — {info['nome']}",
                 symbol='o' if len(self.tempo) == 1 else None,
             )
             curva.setProperty('canal_id', canal)
             self.curvas[canal] = curva
+
+    def grupo_do_canal(self, canal, info, rotulo):
+        eixo = info.get('eixo', '')
+        return (info['unidade'], eixo), f'{rotulo} — Eixo {eixo}' if eixo else rotulo
+
+    def caneta_do_canal(self, canal, info, numero):
+        return pg.mkPen(pg.intColor(numero, hues=max(len(self.canais), 3)), width=1)
 
     def atualizar_visibilidade(self):
         for canal, curva in self.curvas.items():

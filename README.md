@@ -78,6 +78,16 @@ no sinal temporal, FFT, PSD e RMS, inclusive nas exportações dos gráficos.
 Canais sem eixo identificado ficam em cinza, sem atribuir um eixo inexistente.
 A seleção de sensores/eixos e os cálculos permanecem os mesmos.
 
+Na **2026.11.13.4**, velocidade e posição também são agrupadas por sensor com
+X vermelho, Y verde e Z azul. Nas três telas, **Gráfico unificado** abre todas
+as curvas disponíveis em um único gráfico, em uma janela independente.
+Marque/desmarque os canais na lateral ou use **Selecionar todos / Ocultar todos**.
+A janela guarda uma cópia do resultado no momento da abertura, com suas unidades,
+horário, filtros já aplicados e modo atual (temporal, FFT, PSD ou RMS).
+Mudar a seleção ou fechar a origem não modifica essa cópia. Para acompanhar
+um novo tratamento, abra outro gráfico unificado. A nova janela também exporta
+HTML/SVG e CSV temporal dos canais selecionados; espectros continuam em Hz.
+
 Na versão **2026.11.12.3**, os gráficos ocupam toda a altura da área à direita.
 A barra estreita à esquerda alterna duas páginas no mesmo painel lateral:
 

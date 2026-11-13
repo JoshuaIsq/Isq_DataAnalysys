@@ -286,17 +286,17 @@ class InterfaceCanaisTests(ArquivoMixin, unittest.TestCase):
         vel = acm.janelas_resultados[-1]
         self.janelas.append(vel)
         self.assertEqual({c['eixo'] for c in vel.canais.values()}, {EIXO_DESCONHECIDO})
-        self.assertEqual(vel.graficos_eixos[EIXO_DESCONHECIDO].getAxis("left").labelUnits, "mm/s")
+        self.assertEqual(vel.graficos_eixos[1].getAxis("left").labelUnits, "mm/s")
         vel.botao_deslocamento.click()
         desp = vel.janelas_resultados[-1]
         self.janelas.append(desp)
-        self.assertEqual(desp.graficos_eixos[EIXO_DESCONHECIDO].getAxis("left").labelUnits, "mm")
+        self.assertEqual(desp.graficos_eixos[1].getAxis("left").labelUnits, "mm")
         self.assertEqual(vel.grau_ajuste, 1)
         self.assertEqual(desp.grau_ajuste, 2)
         np.testing.assert_allclose(desp.df_sensores.iloc[0],desp.df_integrado.iloc[0]-desp.ajustes['c0'],atol=1e-10)
         acm.botao_rms.click()
         for janela in (acm, vel, desp):
-            self.assertEqual(len(janela.plots_para_exportar()), 4 if janela is acm else 1)
+            self.assertEqual(len(janela.plots_para_exportar()), 4)
             self.exportar_e_conferir(janela, (1, 2, 3, 4))
         self.aviso.assert_not_called()
 
@@ -307,7 +307,7 @@ class InterfaceCanaisTests(ArquivoMixin, unittest.TestCase):
         acm.botao_converter.click()
         vel_y = acm.gerar_velocidade()
         self.janelas.append(vel_y)
-        self.assertEqual(list(vel_y.graficos_eixos), ["Y"])
+        self.assertEqual(list(vel_y.graficos_eixos), [1])
         self.assertEqual(vel_y.canais[1]['eixo'], "Y")
         self.assertTrue(acm.importar_caminho(self.arquivo(["g"] * 4)))
         self.assertEqual(len(acm.curvas_lynx), 4)

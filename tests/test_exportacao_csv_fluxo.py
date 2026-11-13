@@ -137,7 +137,7 @@ class ExportacaoCsvFluxoTests(unittest.TestCase):
         with patch.object(QFileDialog,'getExistingDirectory',return_value=str(self.pasta)),patch.object(Figure,'write_html',salvar):
             vel.exportar_html()
         self.assertEqual(len(capturas),1)
-        for eixo in ('xaxis','xaxis2','xaxis3'):
+        for eixo in ['xaxis' if i == 1 else f'xaxis{i}' for i in range(1,len(vel.graficos_eixos)+1)]:
             ax=getattr(capturas[0].layout,eixo)
             self.assertEqual(ax.type,'date')
             self.assertTrue(ax.showticklabels)

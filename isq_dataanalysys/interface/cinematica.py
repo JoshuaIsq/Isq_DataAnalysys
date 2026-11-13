@@ -2,6 +2,7 @@
 from copy import deepcopy
 
 import numpy as np
+import pyqtgraph as pg
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView, QDialog, QDialogButtonBox, QHeaderView, QLabel,
@@ -15,6 +16,7 @@ from isq_dataanalysys.processamento.sinais import Processamento
 from .dados_tratados import TelaDadosTratados
 from .integracao import mostrar_resultado
 from .passa_banda import ControlePassaBanda
+from .grafico_unificado import abrir_grafico_unificado, CORES_EIXOS
 
 
 class TelaCinematica(TelaDadosTratados):
@@ -52,11 +54,15 @@ class TelaCinematica(TelaDadosTratados):
                 nome = nome.removeprefix(f'Canal {canal} — ')
             else:
                 eixo, nome = info['eixo'], info['nome']
-            infos[canal] = dict(nome=nome, eixo=eixo, unidade=self.unidade)
+            infos[canal] = dict(info) if isinstance(info, dict) else {}
+            infos[canal].update(nome=nome, eixo=eixo, unidade=self.unidade)
         self.carregar_dados(DadosTratados(np.asarray(tempo), corrigido, infos,
                                         inicio_arquivo, metadata), caminho)
         self.botao_abrir.hide()
         self.rotulo_origem.hide()
+        self.botao_unificado = QPushButton('Gráfico unificado')
+        self.botao_unificado.clicked.connect(lambda: abrir_grafico_unificado(self))
+        self.layout_acoes.insertWidget(1, self.botao_unificado)
         self.setWindowTitle(f'{self.nome_resultado} — ajuste grau {grau} — v{__version__}')
         self.botao_estatisticas = QPushButton('Visualizar estatísticas')
         self.botao_estatisticas.clicked.connect(self.mostrar_estatisticas)
@@ -83,10 +89,11 @@ class TelaCinematica(TelaDadosTratados):
             self.painel_intervalo.definir_intervalo_segundos(*intervalo_visualizacao)
         self._atualizar_descricao()
 
-    def _montar_graficos(self):
-        super()._montar_graficos()
-        # Uma única grandeza por janela; identifica os painéis pelo eixo.
-        self.graficos_eixos = {eixo: plot for (_, eixo), plot in self.graficos_eixos.items()}
+    def grupo_do_canal(self, canal, info, rotulo):
+        return info.get('sensor_id', canal), f"{info.get('sensor', info['nome'])} — {rotulo}"
+
+    def caneta_do_canal(self, canal, info, numero):
+        return pg.mkPen(CORES_EIXOS.get(info['eixo'], '#666666'), width=1)
 
     def _atualizar_descricao(self):
         ajuste = 'reta' if self.grau_ajuste == 1 else 'polinômio de grau 2'

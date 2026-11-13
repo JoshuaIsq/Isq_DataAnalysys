@@ -18,6 +18,7 @@ from isq_dataanalysys.interface.eixo_temporal import EixoDataHora, configurar_ei
 from .intervalo_temporal import VinculoIntervalos
 from .visualizacao_acelerometria import VisualizacaoAcelerometria
 from .layout_acelerometria import montar_lateral_acelerometria
+from .grafico_unificado import abrir_grafico_unificado, CORES_EIXOS
 
 
 class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
@@ -168,6 +169,10 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
                                        'Desmarque para voltar a g. FFT e PSD continuam em g e g²/Hz.')
         self.botao_converter.toggled.connect(self.alternar_conversao)
         linha.addWidget(self.botao_converter)
+        self.botao_unificado = QPushButton('Gráfico unificado')
+        self.botao_unificado.setEnabled(False)
+        self.botao_unificado.clicked.connect(lambda: abrir_grafico_unificado(self))
+        linha.addWidget(self.botao_unificado)
         self.rotulo_metodo_integracao = QLabel()
         self.rotulo_metodo_integracao.setWordWrap(True)
         self.rotulo_metodo_integracao.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
@@ -267,6 +272,7 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
         self.botao_converter.setChecked(False)
         self.botao_converter.blockSignals(False)
         self.botao_converter.setEnabled(True)
+        self.botao_unificado.setEnabled(True)
         self.reiniciar_limites_visualizacao()
         self.sensores_lynx = sensores
         self.info_arquivo = info
@@ -499,7 +505,7 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
             if fft or psd:
                 grafico.setLabel("bottom", "Frequência", units="Hz")
 
-        cores = {'X': '#ff0000', 'Y': '#00ff00', 'Z': '#0000ff'}
+        cores = CORES_EIXOS
 
         for numero, sensor in enumerate(self.sensores_lynx, start=1):
             for eixo, n in sensor.items():
@@ -579,7 +585,8 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
             for eixo, canal in sensor.items():
                 if (self.checkboxes_canais[numero].isChecked()
                         and self.checkboxes_eixos[(numero, eixo)].isChecked()):
-                    canais[canal] = (eixo, f"Canal {canal} — {self.info_arquivo['nomes'][canal]}")
+                    canais[canal] = dict(eixo=eixo, nome=self.info_arquivo['nomes'][canal],
+                                         sensor_id=numero, sensor=self.info_arquivo['rotulos_sensores'][numero-1])
         if not canais:
             QMessageBox.information(self, "Integração", "Selecione pelo menos um canal.")
             return
