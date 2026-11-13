@@ -56,6 +56,7 @@ class TelaCinematica(TelaDadosTratados):
         self.carregar_dados(DadosTratados(np.asarray(tempo), corrigido, infos,
                                         inicio_arquivo, metadata), caminho)
         self.botao_abrir.hide()
+        self.rotulo_origem.hide()
         self.setWindowTitle(f'{self.nome_resultado} — ajuste grau {grau} — v{__version__}')
         self.botao_estatisticas = QPushButton('Visualizar estatísticas')
         self.botao_estatisticas.clicked.connect(self.mostrar_estatisticas)
@@ -200,6 +201,7 @@ class TelaCinematica(TelaDadosTratados):
     def mostrar_detalhes(self):
         return self._tabela(
             'Ajuste subtraído após a integração',
+            self.descricao_exportacao + '\n\n'
             f'Soma acumulada x[i]·dt, por arquivo, com primeira amostra x[0]·dt. '
             f'Ajuste grau {self.grau_ajuste}: c0 + c1·τ' + (' + c2·τ²' if self.grau_ajuste == 2 else '') +
             f', τ = t − {self.tempo[0]:g} s. Coeficientes em {self.unidade}, '

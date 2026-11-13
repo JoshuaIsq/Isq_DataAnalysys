@@ -455,7 +455,7 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
 
         elif psd:
             tempo_plot, dados_plot, self.info_psd = Processamento.psd_ac(self.tempo, self.df_tratado_g)
-            rotulo, unidade = 'Densidade espectral de potência (AC)', 'g²/Hz'
+            rotulo, unidade = 'PSD', 'g²/Hz'
             titulo_modo = 'PSD'
 
         elif rms:
@@ -489,6 +489,7 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
                 color="#333333",
             )
             grafico.setLabel("left", rotulo, units=unidade)
+            grafico.getAxis('left').setWidth(80 if psd else 52)
             configurar_eixo_temporal(grafico, None if fft or psd else self.inicio_arquivo)
             if fft or psd:
                 grafico.setLabel("bottom", "Frequência", units="Hz")
