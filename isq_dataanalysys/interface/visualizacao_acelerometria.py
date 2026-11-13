@@ -12,11 +12,6 @@ class VisualizacaoAcelerometria(VisualizacaoTemporal):
         self.habilitar_limites_visualizacao()
 
     @staticmethod
-    def campo_limite(sufixo=""):
-        campo = VisualizacaoTemporal.campo_limite(sufixo)
-        campo.setDecimals(8)
-        return campo
-
     def modo_escala(self):
         if self.botao_fft.isChecked():
             return "fft"

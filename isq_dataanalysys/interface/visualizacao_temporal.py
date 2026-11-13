@@ -9,11 +9,12 @@ class VisualizacaoTemporal:
     def criar_limites_visualizacao(self, linha_inicial=5):
         self.campo_y_min = self.campo_limite()
         self.campo_y_max = self.campo_limite()
-        self.campo_tempo_inicio = self.campo_limite(" min")
-        self.campo_tempo_fim = self.campo_limite(" min")
+        self.campo_tempo_inicio = self.campo_limite()
+        self.campo_tempo_fim = self.campo_limite()
         for campo in (self.campo_tempo_inicio, self.campo_tempo_fim):
-            campo.setDecimals(12)
-            campo.setToolTip("Minutos desde o início da gravação. O intervalo altera somente a visualização.")
+            campo.setDecimals(2)
+        for campo in (self.campo_y_min, self.campo_y_max):
+            campo.setDecimals(3)
         linha = QHBoxLayout()
         for texto, campo in (("Escala mínima:", self.campo_y_min), ("máxima:", self.campo_y_max),
                              ("Tempo inicial (min):", self.campo_tempo_inicio), ("final:", self.campo_tempo_fim)):
@@ -45,7 +46,7 @@ class VisualizacaoTemporal:
         campo.setEnabled(False)
         return campo
 
-    def habilitar_limites_visualizacao(self):
+    def habilitar_limites_visualizacao(self): #O que isso está fazendo de fato ?
         for campo in (self.campo_y_min, self.campo_y_max, self.campo_tempo_inicio, self.campo_tempo_fim):
             campo.setEnabled(True)
         for campo in (self.campo_tempo_inicio, self.campo_tempo_fim):
