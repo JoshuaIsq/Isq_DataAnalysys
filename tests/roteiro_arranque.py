@@ -60,6 +60,8 @@ def executar(app):
                         linhas.writerow([i/200, .01*((i % 11)-5), .02*((i % 13)-6), .03*((i % 7)-3)])
                 assert acm.importar_caminho(csv_path)
                 app.processEvents()
+                assert not acm.botao_velocidade.isEnabled()
+                QTest.mouseClick(acm.botao_converter, Qt.MouseButton.LeftButton)
                 assert acm.botao_velocidade.isEnabled()
                 QTest.mouseClick(acm.botao_velocidade, Qt.MouseButton.LeftButton)
                 assert len(acm.janelas_resultados) == 1
@@ -74,7 +76,7 @@ def executar(app):
                 assert all(w.isVisible() for w in (acm, vel, desp))
                 assert vel.graficos_eixos['X'].getAxis('left').labelUnits == 'mm/s'
                 assert desp.graficos_eixos['X'].getAxis('left').labelUnits == 'mm'
-                assert acm.graficos_eixos['X'].getAxis('left').labelUnits == 'g'
+                assert acm.graficos_eixos['X'].getAxis('left').labelUnits == 'mm/s²'
                 regua_path = Path(pasta) / 'regua.csv'
                 with regua_path.open('w', encoding='utf-8-sig', newline='') as arquivo:
                     linhas = csv.writer(arquivo, delimiter=';')

@@ -265,19 +265,19 @@ class InterfaceTests(ArquivoMixin, unittest.TestCase):
         ext = self.janela(TelaLynxExtensometria)
         ext.importar_caminho(self.arquivo(['MPa', 'μm/m']))
         for campo, valor in ((ext.campo_y_min, -5), (ext.campo_y_max, 10),
-                             (ext.campo_tempo_inicio, .2/60), (ext.campo_tempo_fim, .8/60)):
+                             (ext.campo_tempo_inicio, 0), (ext.campo_tempo_fim, .01)):
             campo.setValue(valor)
         self.assertTrue(ext.aplicar_visualizacao())
         ext.botao_deformacao.click()
         ext.botao_tensao.click()
-        np.testing.assert_allclose(ext.grafico.viewRange(), [[.2, .8], [-5, 10]])
+        np.testing.assert_allclose(ext.grafico.viewRange(), [[0, .6], [-5, 10]])
         fig = criar_figura_html([ext.grafico.getPlotItem()])
         self.assertEqual(len(fig.data), 1)
         self.assertEqual(list(fig.layout.yaxis.range), [-5, 10])
-        self.assertEqual(list(fig.layout.xaxis.range), ['2026-10-28T09:00:00.200000', '2026-10-28T09:00:00.800000'])
+        self.assertEqual(list(fig.layout.xaxis.range), ['2026-10-28T09:00:00.000000', '2026-10-28T09:00:00.600000'])
         self.assertIn('MPa', fig.layout.yaxis.title.text)
         data = criar_figura_html([ext.grafico.getPlotItem()], inicio=datetime(2026, 1, 1))
-        self.assertEqual(data.layout.xaxis.range[0], '2025-12-31T21:00:00.200000')
+        self.assertEqual(data.layout.xaxis.range[0], '2025-12-31T21:00:00.000000')
 
     def test_limites_invalidos_nao_alteram_a_vista(self):
         ext = self.janela(TelaLynxExtensometria)
@@ -366,8 +366,8 @@ class InterfaceTests(ArquivoMixin, unittest.TestCase):
         ext = self.janela(TelaLynxExtensometria)
         ext.importar_caminho(self.arquivo(['MPa', 'μm/m']))
         ext.botao_deformacao.click()
-        ext.campo_tempo_inicio.setValue(.2/60)
-        ext.campo_tempo_fim.setValue(.8/60)
+        ext.campo_tempo_inicio.setValue(0)
+        ext.campo_tempo_fim.setValue(.01)
         ext.campo_y_min.setValue(-7)
         ext.campo_y_max.setValue(8)
         ext.aplicar_visualizacao()
@@ -375,7 +375,7 @@ class InterfaceTests(ArquivoMixin, unittest.TestCase):
         salvar = Figure.savefig
         def verificar_figura(figura, *args, **kwargs):
             np.testing.assert_allclose(figura.axes[0].get_xlim(), mdates.date2num([
-                datetime(2026, 10, 28, 9, 0, 0, 200000), datetime(2026, 10, 28, 9, 0, 0, 800000)]), rtol=0, atol=1e-10)
+                datetime(2026, 10, 28, 9, 0, 0), datetime(2026, 10, 28, 9, 0, 0, 600000)]), rtol=0, atol=1e-10)
             np.testing.assert_allclose(figura.axes[0].get_ylim(), [-7, 8])
             return salvar(figura, *args, **kwargs)
         with patch.object(QFileDialog, 'getExistingDirectory', return_value=self.tmp.name), patch.object(QMessageBox, 'information'):

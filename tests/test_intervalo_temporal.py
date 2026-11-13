@@ -116,6 +116,7 @@ class JanelasTests(ArquivoMixin,unittest.TestCase):
 
     def test_aceleracao_velocidade_deslocamento_mantem_dados_e_recorte(self):
         acm=self.abrir_aceleracao()
+        acm.botao_converter.click()
         original=acm.df_sensores.copy(deep=True)
         curvas={c:np.array(v.getOriginalDataset()[1],copy=True) for c,v in acm.curvas_lynx.items()}
         acm.aplicar_intervalo_temporal((.2,.8))

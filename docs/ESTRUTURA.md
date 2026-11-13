@@ -74,3 +74,11 @@ caches, ambientes virtuais e artefatos de build não devem entrar nos commits.
 Para novas funcionalidades: coloque os cálculos em `processamento/`, o formato de
 entrada em `leitores/` e a tela em `interface/`. Acrescente os testes correspondentes
 em `tests/` e documente o comportamento em `docs/`.
+
+## Fluxo de cinemática a partir de 2026.11.13.1
+
+- `processamento/cinematica.py`: conversão ×9810, Sum[Xdt], ajustes de grau 1/2 e estatísticas.
+- `interface/cinematica.py`: janelas de velocidade/posição, tabela de estatísticas e banda independente da posição. Reutiliza `dados_tratados.py` para gráficos, horários e exportações.
+- `processamento/sinais.py`: filtros existentes, FFT de amplitude e PSD unilateral.
+- `scripts/auditar_cinematica.py`: auditoria numérica reproduzível com um CSV local.
+- `integracao.py` em processamento/interface: funções e janela históricas, mantidas para compatibilidade. A acelerometria não usa mais esse cálculo antigo.

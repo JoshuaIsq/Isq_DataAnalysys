@@ -241,10 +241,10 @@ class InterfaceReguaTests(ArquivoMixin, unittest.TestCase):
         janela.controle_calibração.campo.setValue(2)
         janela.controle_calibração.botao.click()
         for campo, valor in ((janela.campo_y_min, -10), (janela.campo_y_max, 10),
-                             (janela.campo_tempo_inicio, .2/60), (janela.campo_tempo_fim, .8/60)):
+                             (janela.campo_tempo_inicio, 0), (janela.campo_tempo_fim, .01)):
             campo.setValue(valor)
         janela.botao_aplicar_visualizacao.click()
-        np.testing.assert_allclose(janela.grafico.viewRange(), [[.2, .8], [-10, 10]])
+        np.testing.assert_allclose(janela.grafico.viewRange(), [[0, .6], [-10, 10]])
         fonte = janela.df_sensores.copy(deep=True)
         janela.caminho_atual.unlink()
         svg_original, html_original = Figure.savefig, FiguraHtml.write_html
@@ -258,14 +258,14 @@ class InterfaceReguaTests(ArquivoMixin, unittest.TestCase):
             self.assertEqual(str(eixo.lines[0].get_xdata()[0]), "2026-10-28T09:00:00.000000")
             np.testing.assert_allclose(eixo.get_ylim(), [-10, 10])
             np.testing.assert_allclose(eixo.get_xlim(), mdates.date2num([
-                datetime(2026, 10, 28, 9, 0, 0, 200000), datetime(2026, 10, 28, 9, 0, 0, 800000)]), rtol=0, atol=1e-10)
+                datetime(2026, 10, 28, 9, 0, 0), datetime(2026, 10, 28, 9, 0, 0, 600000)]), rtol=0, atol=1e-10)
             chamadas.append("svg")
             return svg_original(figura, *args, **kwargs)
         def verificar_html(figura, *args, **kwargs):
             self.assertEqual(len(figura.data), 1)
             self.assertIn("mm", figura.layout.yaxis.title.text)
             self.assertEqual(figura.data[0].x[0], "2026-10-28T09:00:00.000000")
-            self.assertEqual(figura.layout.xaxis.range[0], "2026-10-28T09:00:00.200000")
+            self.assertEqual(figura.layout.xaxis.range[0], "2026-10-28T09:00:00.000000")
             np.testing.assert_array_equal(figura.data[0].y, fonte[1])
             chamadas.append("html")
             return html_original(figura, *args, **kwargs)
@@ -310,9 +310,10 @@ class InterfaceReguaTests(ArquivoMixin, unittest.TestCase):
         janela = self.janela(self.arquivo(['mm'], alterar=gravacao_longa))
         tempo = janela.tempo.copy()
         original = janela.df_sensores.copy(deep=True)
-        self.assertEqual(janela.campo_tempo_inicio.suffix(), ' min')
+        self.assertEqual(janela.campo_tempo_inicio.suffix(), '')
+        self.assertEqual(janela.campo_tempo_inicio.decimals(), 2)
         self.assertEqual(janela.campo_tempo_inicio.minimum(), 0)
-        self.assertAlmostEqual(janela.campo_tempo_fim.maximum(), 7000/60, places=10)
+        self.assertAlmostEqual(janela.campo_tempo_fim.maximum(), round(7000/60, 2), places=10)
         janela.campo_tempo_inicio.setValue(40)
         janela.campo_tempo_fim.setValue(60)
         self.assertTrue(janela.aplicar_visualizacao())

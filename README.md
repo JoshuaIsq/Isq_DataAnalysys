@@ -1,7 +1,7 @@
 # ISQ DataAnalysys
 
 Análise de CSVs Lynx de acelerometria, extensometria e régua potenciométrica. A aplicação mantém as
-correções de CSV/codificação, filtros, FFT/RMS, integrações temporais e exportações
+correções de CSV/codificação, filtros, FFT/PSD/RMS, integrações temporais e exportações
 SVG/HTML.
 
 ## Abrir a aplicação
@@ -82,14 +82,13 @@ A barra estreita à esquerda alterna duas páginas no mesmo painel lateral:
 
 Somente o painel lateral muda. Os dados, filtros, canais marcados e zoom dos
 gráficos são preservados. Em janelas baixas, a lateral tem rolagem para alcançar
-todos os controles. O ícone de informação ao lado de **Retirar média da
-aceleração** explica o método de integração. Esta revisão é de apresentação;
-não altera os filtros, as unidades nem o cálculo de velocidade/deslocamento.
+todos os controles. O ícone de informação junto a **Gerar velocidade** explica
+o método de cálculo. O fluxo de integração foi atualizado na versão **2026.11.13.1**.
 
 ### Passa-banda na acelerometria
 
 Na revisão **2026.11.12.2**, a acelerometria apresenta apenas **Offset** e
-**Passa-banda** como controles de tratamento, além de FFT, RMS e Gerar velocidade.
+**Passa-banda** como controles de tratamento, além de FFT, PSD, RMS, conversão de unidade e Gerar velocidade.
 Calibração, outliers, média móvel, passa-alta e passa-baixa continuam disponíveis
 nas telas de extensometria e régua.
 
@@ -101,15 +100,15 @@ Digitar valores não aplica o filtro. Cortes inválidos preservam o último sina
 tratado e exibem um aviso. **Desativar** retira somente a banda, preservando o
 Offset. **Restaurar original** e importar outro CSV limpam os tratamentos.
 O processamento parte sempre do original: Offset, depois Passa-banda.
-RMS, FFT, integração e exportação usam o resultado tratado.
+RMS, FFT/PSD, integração e exportação usam o resultado tratado.
 
 **Escala mínima**, **máxima**, **Tempo inicial (min)** e **final** usam o mesmo
 layout da extensometria. **Aplicar escala e tempo** aplica a mesma escala vertical
 a todos os eixos e limita a vista ao trecho escolhido. **Ajustar aos dados**
 restaura o intervalo completo e calcula a escala pelos canais selecionados.
-A escala é lembrada separadamente para sinal em g, FFT em g, RMS em mg e RMS
-logarítmico. Os limites do RMS logarítmico são digitados em mg e devem ser positivos.
-Em FFT, somente os campos de tempo ficam desabilitados. Voltar ao tempo preserva
+A escala é lembrada separadamente por modo e unidade: g, mm/s², FFT, PSD e RMS.
+Os limites do RMS logarítmico são digitados na unidade exibida e devem ser positivos.
+Em FFT/PSD, somente os campos de tempo ficam desabilitados. Voltar ao tempo preserva
 o intervalo anteriormente escolhido. Esses controles não recortam os cálculos de
 integração nem alteram as amostras; as janelas derivadas herdam o intervalo.
 
@@ -119,32 +118,22 @@ filtro de ordem 8 por passagem. Os cortes informados são os cortes do projeto d
 uma passagem: aproximadamente −3 dB por passagem, ou −6 dB após ida e volta.
 O filtro tem fase zero e pode apresentar transientes no início e no fim do sinal.
 
-### Integral do sinal tratado
+### Velocidade e posição — 2026.11.13.1
 
-Na revisão **2026.11.09.2**, **Retirar média da aceleração** vem marcada por
-padrão. **Gerar velocidade** subtrai somente a média aritmética de cada canal
-temporal tratado, após os filtros, em uma cópia; depois integra de g para mm/s.
-Desmarque a opção para integrar sem retirar essa média. A janela de aceleração
-é preservada. **Gerar deslocamento** integra a velocidade exibida para mm,
-**sem retirar a média da velocidade**. Não há ajuste de reta ou parábola.
-As duas etapas usam trapézios e condições iniciais zero. O método, os valores
-das médias removidas e os tratamentos constam nas janelas e nos SVG/HTML.
+1. Aplique o **Passa-banda** e consulte **FFT** (amplitude em g) ou **PSD** (g²/Hz).
+2. Clique **Converter g → mm/s² (×9810)**: atualiza o sinal temporal e suas unidades.
+3. **Gerar velocidade** integra por soma X·dt e subtrai a reta ajustada à velocidade.
+4. Na janela de velocidade, **Visualizar estatísticas** mostra RMS total, máximo e
+   mínimo por canal no intervalo selecionado.
+5. **Obter posição** integra a velocidade corrigida e subtrai o ajuste de **grau 2**.
+6. Na posição, há um **Passa-banda** adicional opcional, com **Aplicar** e **Desativar**.
 
-Retirar a média da aceleração não garante eliminar toda deriva ou zerar o
-deslocamento final. Resultados podem ser maiores que nas versões com ajustes
-polinomiais. Fidelidade às amostras
-tratadas não garante exatidão do movimento físico: filtros, discretização,
-transientes, erro do sensor e condições iniciais influenciam o resultado.
-Veja as [garantias, limites e exemplos de deriva](docs/INTEGRACAO_ACELEROMETRIA.md).
+Cada arquivo é um segmento independente. Os ajustes são feitos **após** integrar;
+não há retirada automática da média da aceleração. A banda da posição não altera
+a aceleração nem a velocidade já abertas, e reaplicar não acumula filtros.
+Veja o [passo a passo, fórmulas e validação](docs/INTEGRACAO_ACELEROMETRIA.md).
 
 ### Intervalo em minutos e CSV tratado
-
-Na revisão **2026.11.12.1**, a janela de deslocamento oferece **Retirar reta do
-deslocamento**, marcada por padrão. O ajuste linear por mínimos quadrados é
-subtraído depois da segunda integração; pode ser desmarcado para comparar com
-a integral preservada. **Verificar por derivação** abre as derivadas e a comparação
-com a aceleração usada. A conversão g → m/s² → m/s → mm/s é automática.
-Veja [método, condições iniciais e limites da verificação](docs/CORRECAO_DESLOCAMENTO.md).
 
 A revisão **2026.11.11.1** permite avaliar um trecho em minutos nas janelas
 temporais, inclusive aceleração, velocidade e deslocamento. Por exemplo,

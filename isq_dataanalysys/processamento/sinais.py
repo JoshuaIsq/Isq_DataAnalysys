@@ -3,7 +3,7 @@
 import numpy as np
 import pandas as pd
 from numpy.lib.stride_tricks import sliding_window_view
-from scipy.signal import butter, sosfiltfilt
+from scipy.signal import butter, sosfiltfilt, periodogram
 
 
 class Processamento:
@@ -230,3 +230,21 @@ class Processamento:
             pd.DataFrame(amplitudes, columns=dados.columns),
             info,
         )
+
+    @staticmethod
+    def psd_ac(tempo, dados):
+        """PSD unilateral AC, periodograma retangular do registro completo.
+
+        Densidade em unidade²/Hz; soma(PSD)*Δf = média do sinal AC ao quadrado.
+        Mantém a mesma janela/resolução da FFT de amplitude, sem confundi-las.
+        """
+        fs = Processamento.validar_dados(tempo, dados)
+        frequencias, densidade = periodogram(
+            dados.to_numpy(dtype=float), fs=fs, window='boxcar', detrend='constant',
+            return_onesided=True, scaling='density', axis=0,
+        )
+        if not np.isfinite(densidade).all():
+            raise ValueError('A PSD gerou valores inválidos; confira a amplitude do sinal.')
+        return (frequencias, pd.DataFrame(densidade, columns=dados.columns),
+                {'fs': fs, 'resolucao_hz': fs / len(dados), 'amostras': len(dados),
+                 'metodo': 'periodograma unilateral', 'janela': 'retangular'})

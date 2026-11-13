@@ -19,7 +19,7 @@ from tests.apoio import ArquivoMixin
 from isq_dataanalysys.interface.acelerometria import TelaLynxAcelerometria
 from isq_dataanalysys.leitores.acelerometria import EIXO_DESCONHECIDO, ler_lynx_acelerometria
 from isq_dataanalysys.leitores.extensometria import ler_lynx_extensometria
-from isq_dataanalysys.processamento.integracao import integrar_relativo
+from isq_dataanalysys.processamento.cinematica import integrar_segmento, retirar_ajuste
 
 
 def caso_imagem():
@@ -215,20 +215,21 @@ class InterfaceCanaisTests(ArquivoMixin, unittest.TestCase):
         original = acm.df_original.copy(deep=True)
         self.assertTrue(acm.aplicar_configuracao({"passa_banda": (30, 100)}))
         self.verificar_curvas(acm)
+        acm.botao_converter.click()
         acm.botao_fft.click()
         acm.botao_velocidade.click()
         vel = acm.janelas_resultados[-1]
         self.janelas.append(vel)
         self.assertEqual(list(vel.df_sensores), [1, 2, 3, 4, 5, 6, 14, 15])
-        entrada = acm.df_sensores.subtract(acm.df_sensores.mean(), axis='columns')
-        np.testing.assert_allclose(vel.df_sensores, integrar_relativo(acm.tempo, entrada, "aceleracao"), atol=1e-9)
-        self.assertEqual(vel.canais[14][0], "Y")
-        self.assertEqual(vel.canais[15][0], "Y")
+        entrada = acm.df_sensores
+        np.testing.assert_allclose(vel.df_sensores, retirar_ajuste(acm.tempo, integrar_segmento(acm.tempo, entrada), 1)[0], atol=1e-9)
+        self.assertEqual(vel.canais[14]['eixo'], "Y")
+        self.assertEqual(vel.canais[15]['eixo'], "Y")
         vel.botao_deslocamento.click()
         desp = vel.janelas_resultados[-1]
         self.janelas.append(desp)
         self.app.processEvents()
-        pd.testing.assert_frame_equal(desp.df_deslocamento_integrado, integrar_relativo(vel.tempo, vel.df_sensores, "velocidade"))
+        pd.testing.assert_frame_equal(desp.df_integrado, integrar_segmento(vel.tempo, vel.df_sensores))
         self.assertTrue(all(janela.isVisible() for janela in (acm, vel, desp)))
         pd.testing.assert_frame_equal(acm.df_original, original)
         # Seleção dos dois Y com o mesmo nome, mantendo seus dados independentes.
@@ -251,20 +252,21 @@ class InterfaceCanaisTests(ArquivoMixin, unittest.TestCase):
         self.assertEqual(len(acm.plots_para_exportar()), 1)
         self.assertTrue(acm.aplicar_configuracao({"passa_banda": (30, 100)}))
         self.verificar_curvas(acm)
+        acm.botao_converter.click()
         acm.botao_rms.click()
         self.assertEqual(len(acm.curvas_lynx), 4)
         acm.botao_velocidade.click()
         vel = acm.janelas_resultados[-1]
         self.janelas.append(vel)
-        self.assertEqual({eixo for eixo, _ in vel.canais.values()}, {EIXO_DESCONHECIDO})
+        self.assertEqual({c['eixo'] for c in vel.canais.values()}, {EIXO_DESCONHECIDO})
         self.assertEqual(vel.graficos_eixos[EIXO_DESCONHECIDO].getAxis("left").labelUnits, "mm/s")
         vel.botao_deslocamento.click()
         desp = vel.janelas_resultados[-1]
         self.janelas.append(desp)
         self.assertEqual(desp.graficos_eixos[EIXO_DESCONHECIDO].getAxis("left").labelUnits, "mm")
-        self.assertTrue(np.all(vel.df_sensores.iloc[0] == 0))
-        self.assertTrue(np.all(desp.df_deslocamento_integrado.iloc[0] == 0))
-        np.testing.assert_allclose(desp.df_sensores.iloc[0],-desp.ajustes_rampa['intercepto_mm'],atol=1e-10)
+        self.assertEqual(vel.grau_ajuste, 1)
+        self.assertEqual(desp.grau_ajuste, 2)
+        np.testing.assert_allclose(desp.df_sensores.iloc[0],desp.df_integrado.iloc[0]-desp.ajustes['c0'],atol=1e-10)
         acm.botao_rms.click()
         for janela in (acm, vel, desp):
             self.assertEqual(len(janela.plots_para_exportar()), 1)
@@ -275,10 +277,11 @@ class InterfaceCanaisTests(ArquivoMixin, unittest.TestCase):
         acm = self.tela(["g"], ["ACC 1 - Y"])
         self.verificar_curvas(acm)
         self.assertEqual([e for e, plot in acm.graficos_eixos.items() if plot.isVisible()], ["Y"])
+        acm.botao_converter.click()
         vel_y = acm.gerar_velocidade()
         self.janelas.append(vel_y)
         self.assertEqual(list(vel_y.graficos_eixos), ["Y"])
-        self.assertEqual(vel_y.canais[1][0], "Y")
+        self.assertEqual(vel_y.canais[1]['eixo'], "Y")
         self.assertTrue(acm.importar_caminho(self.arquivo(["g"] * 4)))
         self.assertEqual(len(acm.curvas_lynx), 4)
         acm.checkboxes_canais[2].setChecked(False)
@@ -287,10 +290,11 @@ class InterfaceCanaisTests(ArquivoMixin, unittest.TestCase):
         self.verificar_curvas(acm)
         self.assertFalse(acm.graficos_eixos[EIXO_DESCONHECIDO].isVisible())
         self.assertEqual(len(acm.plots_para_exportar()), 3)
+        acm.botao_converter.click()
         vel = acm.gerar_velocidade()
         self.janelas.append(vel)
         self.assertEqual(list(vel.df_sensores), [1, 2, 3])
-        self.assertEqual({c: e for c, (e, _) in vel.canais.items()}, {1: "Z", 2: "X", 3: "Y"})
+        self.assertEqual({c: info['eixo'] for c, info in vel.canais.items()}, {1: "Z", 2: "X", 3: "Y"})
         self.aviso.assert_not_called()
 
 

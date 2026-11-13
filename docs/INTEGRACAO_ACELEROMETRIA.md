@@ -1,182 +1,122 @@
-# Velocidade e deslocamento relativos
+# Acelerometria: fluxo por segmento — 2026.11.13.1
 
-Na acelerometria, o sinal temporal continua em **g**. Após aplicar os
-tratamentos desejados, selecione os acelerômetros/eixos e clique em
-**Gerar velocidade**. Uma nova janela apresenta velocidade em **mm/s**;
-a janela de aceleração permanece aberta. Mesmo com FFT ou RMS visível,
-a entrada da integração é o sinal temporal tratado completo.
+## Operação
 
-Na revisão **2026.11.09.2**, a opção **Retirar média da aceleração** aparece
-marcada por padrão. Antes de gerar velocidade, o programa calcula a **média
-aritmética de todas as amostras de cada canal tratado** e subtrai somente esse
-valor, em uma cópia. A operação vem depois de todos os filtros escolhidos,
-inclusive o passa-banda. Não mistura canais ou eixos e não ajusta inclinação.
+1. Abra o CSV em **Lynx → Acelerometria** e selecione os canais.
+2. Em **Passa-banda**, informe Low cutoff e High cutoff e clique **Aplicar**.
+   O Butterworth em SOS, ordem de projeto 4 e `sosfiltfilt`, foi preservado.
+   Use `0 < Low < High < fs/2`. Offset continua sendo uma operação opcional anterior à banda.
+3. **FFT** mostra amplitude de pico em **g**; **PSD** mostra densidade em **g²/Hz**.
+   Clique novamente no modo ativo para voltar ao tempo. As duas análises usam o
+   sinal temporal tratado em g, mesmo após ativar a conversão.
+4. Clique **Converter g → mm/s² (×9810)**. O gráfico temporal e a exportação
+   temporal passam a mm/s². Reaplicar filtros não acumula multiplicações.
+   Desmarcar esse controle volta a g. Restaurar original/importar outro CSV reinicia a conversão.
+5. Clique **Gerar velocidade**. Abre-se a velocidade em mm/s, já com seu ajuste
+   linear subtraído **depois** de integrar.
+6. Na velocidade, **Visualizar estatísticas** mostra RMS total, máximo e mínimo
+   dos canais selecionados no intervalo aplicado. RMS = √média(v²); não é RMS AC.
+7. Clique **Obter posição**. A velocidade corrigida é integrada e o ajuste de
+   **grau 2** é subtraído da posição. A unidade é mm.
+8. Na posição, o **Passa-banda** é opcional e independente da banda da aceleração.
+   Aplicar novamente parte sempre da posição após o ajuste quadrático; não encadeia
+   filtragens repetidas. **Desativar** restaura essa posição anterior ao filtro.
 
-Depois, converte g para mm/s² usando **1 g = 9806,65 mm/s²** e integra pelos
-trapézios cumulativos, com velocidade inicial zero. Se desmarcar a opção,
-integra diretamente a aceleração tratada, sem retirar sua média.
+Os resultados abertos são cópias independentes: alterar ou fechar a origem não
+modifica resultados já calculados. O procedimento não retira automaticamente a
+média da aceleração. A opção antiga saiu do fluxo principal.
 
-```text
-Padrão: aceleração tratada → retirar sua média por canal → integrar → velocidade
-Opção desmarcada: aceleração tratada → integrar → velocidade
-Ambos: velocidade exibida → integrar sem retirar sua média → deslocamento bruto
-Padrão novo: deslocamento bruto → subtrair reta de mínimos quadrados → exibir
-```
+## Cálculo definido
 
-O gráfico e os dados da janela de aceleração são preservados ao gerar velocidade:
-a compensação vale para a cópia usada na integração. As novas janelas e os
-SVG/HTML informam se a média foi retirada e registram seu valor em g para cada
-canal. Não há ajuste de reta na aceleração nem de parábola na velocidade.
-Desde **2026.11.12.1**, a nova janela de deslocamento permite retirar uma reta
-do próprio deslocamento, depois de integrar. A opção vem marcada e pode ser
-desmarcada para comparar com a integral bruta. O ajuste pode mudar o valor inicial
-do deslocamento exibido. Veja [correção e verificação por derivação](CORRECAO_DESLOCAMENTO.md).
-
-Na janela de velocidade, selecione os canais e clique em
-**Gerar deslocamento**. O cálculo integra a velocidade exibida, sem subtrair
-quadrática ou recentrar o sinal. Usa os trapézios e deslocamento inicial zero.
-O resultado em **mm** abre em outra janela, com a opção posterior de ajuste linear
-do deslocamento. O início zero se refere à integral anterior a esse ajuste.
-
-Os resultados são **relativos ao início do intervalo** completo carregado,
-identificado nas janelas. Os cálculos mantêm os segundos da origem; quando
-há data inicial válida, o eixo mostra data/hora local com a redução de três
-horas do CSV.
-Zoom apenas altera a visualização; não recorta o intervalo integrado.
-Os resultados dependem dos tratamentos escolhidos e das condições iniciais
-assumidas; não representam velocidade ou posição absoluta.
-
-A média aritmética usa peso igual para cada amostra. Ela é diferente da média
-temporal calculada como a área dos trapézios dividida pela duração, que dá meio
-peso às extremidades. Assim, retirar a média aritmética da aceleração não
-impõe velocidade final exatamente zero. Não se impõe deslocamento final zero.
-
-Cada resultado recebe uma cópia independente dos dados e da seleção de canais.
-Alterar tratamentos, seleções ou reabrir arquivos na origem não altera os
-resultados já gerados. Todas as janelas permitem selecionar canais e exportar
-os gráficos visíveis em **SVG vetorial** e **HTML interativo**, com as unidades
-e a referência temporal indicadas nos gráficos derivados. O método e a lista
-dos tratamentos da aceleração ficam registrados no resultado e nas exportações,
-mesmo depois de alterar ou fechar a janela de origem.
-
-## O que a integral fiel garante
-
-Para cada canal, em cada intervalo de amostragem, antes da correção opcional do deslocamento:
+Cada arquivo carregado é **um segmento**. Não há acumulação entre arquivos nem
+segmentação automática em janelas. As duas integrações usam amostragem uniforme:
 
 ```text
-v[0] = 0
-v[i] − v[i−1] = 9806,65 × (a[i−1] + a[i]) / 2 × (t[i] − t[i−1])
-d[0] = 0
-d[i] − d[i−1] = (v[i−1] + v[i]) / 2 × (t[i] − t[i−1])
+a_mm[i] = 9810 × a_g_tratada[i]
+v_bruta[i] = v_bruta[i−1] + a_mm[i] × dt
+v[i] = v_bruta[i] − (b_v + m_v × τ[i])
+x_bruta[i] = x_bruta[i−1] + v[i] × dt
+x[i] = x_bruta[i] − (c0 + c1 × τ[i] + c2 × τ[i]²)
+τ = t − t[0]
 ```
 
-`a` contém as amostras tratadas selecionadas na acelerometria, **após subtrair
-a média aritmética se a opção estiver marcada**;
-`v` contém exatamente as amostras exibidas na janela de velocidade.
-As igualdades estão sujeitas ao arredondamento de ponto flutuante. Não há
-uso de FFT/RMS, imposição de repouso no final, retirada da média da velocidade,
-ajustes polinomiais na aceleração/velocidade ou modificação das medições de origem. Duas amostras válidas bastam para
-calcular uma área.
+Os acumuladores começam em zero **antes** da primeira amostra. Portanto,
+`v_bruta[0] = a_mm[0] × dt` e `x_bruta[0] = v[0] × dt`. Esta é a soma
+retangular **Sum[Xdt] / Per segment calculation**, não a integração por trapézios
+usada nas revisões anteriores. O fator solicitado é **9810**, em lugar de 9806,65.
 
-No instante inicial, o intervalo acumulado tem duração zero, portanto a integral
-acumulada é zero. A primeira variação de velocidade usa a área entre a primeira
-e a segunda amostras. O valor da primeira aceleração, isoladamente, não determina
-uma velocidade inicial; essa referência precisa ser conhecida ou assumida.
+Os ajustes por mínimos quadrados são independentes por canal, incluem o intercepto
+e usam o registro completo. O cálculo normaliza o tempo em [-1, 1] para melhorar
+sua estabilidade numérica. **Detalhes do cálculo** informa os coeficientes na
+base de segundos relativos. O resultado ajustado não é forçado a começar em zero.
 
-Cada etapa é a integral da interpolação linear das suas amostras de entrada.
-Isso define uma referência matemática verificável, mas não determina o sinal
-contínuo desconhecido entre as amostras. Aplicar trapézios duas vezes também
-aproxima o deslocamento do movimento contínuo; não torna essa dupla integral
-fisicamente exata.
+## FFT e PSD
 
-Por exemplo, para uma componente harmônica de frequência `f`, amostrada em
-`fs`, a razão da amplitude dos trapézios para a integração contínua em regime
-é `z/tan(z)`, com `z = πf/fs`, em cada etapa. A 200 Hz, uma componente de 5 Hz
-tem aproximadamente 0,206% de redução de amplitude na velocidade e 0,411%
-no deslocamento após duas etapas. A 30 Hz, as reduções são cerca de 7,51%
-e 14,46%. Esses valores isolam a discretização; não incluem o ganho do filtro,
-transientes, ruído, calibração ou incerteza das condições iniciais. Portanto,
-concordância entre dois cálculos dos trapézios não certifica essa mesma precisão
-em relação ao movimento físico.
+Ambas usam o registro inteiro, janela retangular e retirada de média apenas para
+a análise espectral. A resolução é `Δf = fs/N`. FFT é amplitude unilateral de pico;
+PSD é o periodograma unilateral com normalização de densidade. DC e Nyquist não
+são duplicados. A soma `Σ PSD × Δf` reproduz a média quadrática do sinal AC em g².
+Não se usa Welch nem suavização espectral implícita. Sem as configurações de janela,
+normalização e médias do bloco espectral do LabVIEW, não se afirma igualdade com
+uma PSD gerada lá. HTML/SVG exportam os espectros em Hz; CSV tratado é temporal.
 
-## Deriva e filtros
+RMS AC por janelas continua disponível na aceleração: em mg antes da conversão,
+em mm/s² após a conversão. Ele não é usado como entrada das integrações.
 
-Deriva é a mudança lenta que se acumula nas integrais. Uma aceleração residual
-constante `b` produz `Δv = b × t` e `Δd = b × t²/2`. Apenas **0,000001 g**,
-ao longo de 60 s, acrescenta **0,588399 mm/s** e **17,65197 mm**. A integral
-fiel preservaria isso se não houvesse retirada dessa média. Essa é a razão para
-oferecer a compensação explícita. Um desvio estritamente constante em todo o
-intervalo é retirado pela opção; variações de offset, transientes e outras
-componentes lentas ainda podem provocar deriva.
+## Intervalos, exportação e limites
 
-Um sinal oscilatório também pode produzir uma velocidade com média diferente
-de zero quando se impõe v[0] = 0 em uma fase arbitrária. A condição inicial
-não é uma estimativa automática da velocidade física do sensor. Essa média
-gera uma componente linear no deslocamento, mesmo sem aceleração constante.
+Os campos em minutos selecionam **visualização, CSV exportado e estatísticas**.
+Não reiniciam a integração nem refazem ajustes só no recorte. Para integrar um novo
+segmento desde o início, carregue um arquivo contendo esse segmento.
 
-Filtros alteram as amostras e, consequentemente, suas integrais. O passa-banda
-remove componentes fora da banda e apresenta transientes nas extremidades.
-Filtrar um recorte não é equivalente a recortar um registro já filtrado,
-especialmente perto das bordas. O Butterworth em ida e volta tem ganho de
-aproximadamente 0,5 nos cortes informados (−6 dB), não ganho unitário em toda
-a banda. Não se espera recuperar por integração as componentes removidas.
+CSV tratado mantém as unidades, coeficientes, banda da origem, filtro adicional
+da posição, método e timestamp. Reabra em **Dados tratados**. HTML/SVG mantêm o
+horário local do CSV −3 h nos eixos temporais. A FFT/PSD usam frequência.
+Os campos da tela principal mantêm a apresentação de duas casas em minutos do
+commit do usuário (0,01 min = 0,6 s); as janelas de resultados permitem mais precisão.
 
-Com passa-banda de 1–30 Hz, os resultados derivam da aceleração nessa banda,
-sob as condições iniciais escolhidas. Não são uma medição garantida de
-deslocamento estático, permanente ou total. Uma régua só pode ser comparada
-considerando o mesmo ponto, direção, tempo e banda relevante.
+Subtrair a reta da velocidade altera a aceleração por uma constante. Subtrair o
+ajuste quadrático da posição também altera a aceleração por uma constante.
+Para a soma discreta, no interior do registro, antes do filtro final:
 
-### Mudança em relação às versões anteriores
-
-Até **2026.11.06.3**, a integração removia uma reta da aceleração e uma
-quadrática da velocidade automaticamente. Esses ajustes globais podiam
-introduzir componentes lentas depois do passa-banda e faziam o deslocamento
-integrar uma velocidade diferente da exibida. A revisão **2026.11.09.1**
-retira esses dois ajustes conforme a escolha pela integral fiel.
-
-A revisão **2026.11.09.2** acrescenta a retirada explícita da média **somente
-da aceleração**, marcada por padrão conforme a orientação escolhida. A
-velocidade continua sem retirada de média ou ajuste polinomial. A opção pode
-ser desmarcada para comparar com a integração direta da revisão 2026.11.09.1.
-
-Resultados novos podem mostrar valores maiores ou deriva que antes era
-removida. Não devem ser confundidos com confirmação de deslocamento físico.
-É preciso gerar novas janelas para usar o método novo; resultados anteriores
-não são recalculados automaticamente.
-
-## Verificação
-
-Com as dependências da aplicação instaladas:
-
-```sh
-QT_QPA_PLATFORM=offscreen python -m unittest discover -s tests -v
+```text
+Δ²x[i]/dt² = a_mm[i] − m_v − 2*c2, i >= 2
 ```
 
-A suíte cobre soluções constantes, polinomiais e harmônicas conhecidas,
-conversão de unidades, condições iniciais, retirada apenas da média da aceleração,
-preservação de inclinações e da média da velocidade,
-referência numérica independente em precisão estendida, validação de entradas, uso do sinal tratado
-com FFT/RMS ativos, preservação da origem, janelas independentes, seleção de
-canais e gravação real de SVG/HTML, além das regressões de CSV e codificação.
+Assim, derivar a posição corrigida não deve ser apresentado como uma confirmação
+de igualdade com a aceleração original. O passa-banda final também muda a série.
+O método remove tendências escolhidas; não prova que essas tendências eram erro
+instrumental, nem recupera movimento/condições iniciais removidos pelos filtros.
 
-## Identificar a revisão e o código aberto
+## Verificação reproduzível
 
-A revisão **2026.10.30.3** mostra a versão no título e no rodapé da acelerometria,
-com **Gerar velocidade** destacado em azul abaixo de FFT/RMS. O botão aparece
-mesmo antes de abrir o CSV e habilita após uma importação válida.
+```powershell
+python -m unittest discover -s tests -v
+python -m scripts.auditar_cinematica "caminho\medicao.csv" --low 1 --high 30
+```
 
-O botão fica disponível nos modos temporal, FFT e RMS. O sinal temporal continua
-em g; a visualização RMS AC existente continua em mg. FFT e RMS nunca são usados
-como entrada da integração.
+A auditoria usa soma em precisão estendida e ajuste por projeção QR como referência
+independente. Testes cobrem valores calculados à mão, soma geométrica de senoides,
+resíduos ortogonais conhecidos, PSD/Parseval, unidades, reinicialização por segmento,
+canal/intervalo nas estatísticas, filtro reversível e exportações.
 
-A seleção de canais dos resultados fica na lateral. As exportações derivadas
-incluem o método, o intervalo temporal, a condição inicial e a referência ao início
-do intervalo. A data de início do CSV é preservada na importação: mudar ou remover
-o arquivo de origem não altera essa referência nas exportações dos resultados.
+No CSV de ensaio fornecido: **124.740 amostras × 12 canais em g, 200 Hz**, de 0 a
+623,695 s; Channel 16 em mm foi excluído. Com banda 1–30 Hz:
 
-Fechar a aceleração mantém velocidade e deslocamento abertos. Fechar a velocidade
-mantém o deslocamento aberto; os dados de uma janela fechada são liberados após
-seu fechamento. Fechar resultados não altera os dados da origem.
+| Comparação com a referência independente | Erro absoluto máximo |
+|---|---:|
+| Velocidade corrigida | 4,09 × 10⁻¹⁴ mm/s |
+| Posição corrigida | 2,24 × 10⁻¹² mm |
+| Segunda diferença vs. aceleração ajustada | 1,05 × 10⁻¹¹ mm/s² |
 
-Se o título não mostrar a revisão, consulte as instruções de atualização e de
-consolidação do projeto no [guia de migração](MIGRACAO.md).
+Esses erros medem concordância numérica entre implementações. Não há uma série
+exportada pelo LabVIEW para certificar igualdade amostra a amostra com aquele ensaio.
+O script grava métricas e estatísticas em `work/auditoria_cinematica`, sem copiar o CSV.
+
+Referências de operação: configuração **Integral (Sum[Xdt]) / Per segment calculation**
+fornecida pelo usuário; [discussão NI sobre acumulação e dt](https://forums.ni.com/t5/Industrial-Communications/Time-Domain-Math-VI-I-am-trying-to-integrate-a-data-streem-over/m-p/3145392)
+e [reinicialização por segmento](https://forums.ni.com/t5/LabVIEW/reset-integral/m-p/1514200).
+
+As funções históricas em `processamento/integracao.py` e a antiga janela em
+`interface/integracao.py` permanecem para compatibilidade e seus testes; a tela
+principal agora usa `processamento/cinematica.py` e `interface/cinematica.py`.

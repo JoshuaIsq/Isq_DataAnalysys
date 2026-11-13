@@ -142,6 +142,7 @@ class PainelHorarioTests(ArquivoMixin, unittest.TestCase):
             np.testing.assert_array_equal(janela.tempo, tempo)
             resultados = [janela]
             if classe is TelaLynxAcelerometria:
+                janela.botao_converter.click()
                 vel = janela.gerar_velocidade()
                 desp = vel.gerar_deslocamento()
                 self.janelas.extend([vel, desp])

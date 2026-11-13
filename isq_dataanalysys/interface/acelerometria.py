@@ -9,8 +9,9 @@ from isq_dataanalysys.leitores.acelerometria import (
 )
 from isq_dataanalysys.leitores.lynx import LinhaFinalIncompleta, aviso_unidades
 from isq_dataanalysys.processamento.sinais import Processamento
-from isq_dataanalysys.processamento.integracao import integrar_relativo, retirar_media_aceleracao
-from isq_dataanalysys.interface.integracao import TelaIntegracao, mostrar_resultado
+from isq_dataanalysys.processamento.cinematica import converter_aceleracao, integrar_segmento, FATOR_G_MM_S2
+from isq_dataanalysys.interface.cinematica import TelaCinematica
+from isq_dataanalysys.interface.integracao import mostrar_resultado
 from isq_dataanalysys.interface.passa_banda import ControlePassaBanda
 from isq_dataanalysys import __version__ as VERSAO
 from isq_dataanalysys.interface.eixo_temporal import EixoDataHora, configurar_eixo_temporal
@@ -35,6 +36,7 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
         self.tempo = None
         self.df_original = None
         self.df_sensores = None
+        self.df_tratado_g = None
         self.sensores_lynx = []
         self.caminho_atual = None
         self.inicio_arquivo = None
@@ -58,8 +60,52 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
         montar_lateral_acelerometria(self)
 
     def mostrar_metodo_integracao(self):
-        QMessageBox.information(self, "Sobre a integração", self.rotulo_metodo_integracao.text()
-                                + "\n\n" + self.checkbox_media_aceleracao.toolTip())
+        QMessageBox.information(self, "Sobre a integração", self.rotulo_metodo_integracao.text())
+
+    @property
+    def unidade_aceleracao(self):
+        return 'mm/s²' if self.botao_converter.isChecked() else 'g'
+
+    def modo_espectral(self):
+        return self.botao_fft.isChecked() or self.botao_psd.isChecked()
+
+    def aplicar_configuracao(self, proposta):
+        # Os filtros sempre partem do CSV em g, mesmo com a conversão ativa.
+        try:
+            resultado, info = Processamento.aplicar(self.tempo, self.df_original, proposta)
+            exibido = (converter_aceleracao(self.tempo, resultado)
+                       if self.botao_converter.isChecked() else resultado.copy())
+        except ValueError as erro:
+            QMessageBox.warning(self, 'Parâmetro inválido', str(erro))
+            return False
+        self.df_tratado_g = resultado
+        self.df_sensores = exibido
+        self.config_filtros = proposta.copy()
+        self.info_processamento = info
+        self.atualizar_indicacao_filtros()
+        self.atualizar_graficos()
+        return True
+
+    def alternar_conversao(self, ativo):
+        if self.df_tratado_g is None:
+            return
+        try:
+            resultado = (converter_aceleracao(self.tempo, self.df_tratado_g)
+                         if ativo else self.df_tratado_g.copy())
+        except ValueError as erro:
+            self.botao_converter.blockSignals(True)
+            self.botao_converter.setChecked(not ativo)
+            self.botao_converter.blockSignals(False)
+            QMessageBox.warning(self, 'Conversão inválida', str(erro))
+            return
+        self.df_sensores = resultado
+        self.botao_velocidade.setEnabled(ativo)
+        # Mostra imediatamente o sinal convertido no domínio temporal.
+        for botao in (self.botao_fft, self.botao_psd, self.botao_rms):
+            botao.blockSignals(True)
+            botao.setChecked(False)
+            botao.blockSignals(False)
+        self.mudar_visualizacao()
 
     def criar_controle_passa_banda(self):
         self.layout_controles.setHorizontalSpacing(16)
@@ -114,34 +160,34 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
             "QPushButton:disabled {background: #d4dce5; color: #536170;}"
         )
         linha.addWidget(self.botao_velocidade)
-        self.checkbox_media_aceleracao = QCheckBox("Retirar média da aceleração")
-        self.checkbox_media_aceleracao.setObjectName("retirar_media_aceleracao")
-        self.checkbox_media_aceleracao.setChecked(True)
-        self.checkbox_media_aceleracao.setToolTip(
-            "Antes de gerar velocidade, subtrai somente a média aritmética de cada canal "
-            "da aceleração tratada, usando todo o intervalo carregado. "
-            "Preserva a origem. Não retira média da velocidade nem ajusta retas ou parábolas."
-        )
-        linha.addWidget(self.checkbox_media_aceleracao)
+        self.botao_converter = QPushButton('Converter g → mm/s² (×9810)')
+        self.botao_converter.setObjectName('converter_aceleracao')
+        self.botao_converter.setCheckable(True)
+        self.botao_converter.setEnabled(False)
+        self.botao_converter.setToolTip('Após o passa-banda, converte o sinal temporal uma única vez. '
+                                       'Desmarque para voltar a g. FFT e PSD continuam em g e g²/Hz.')
+        self.botao_converter.toggled.connect(self.alternar_conversao)
+        linha.addWidget(self.botao_converter)
         self.rotulo_metodo_integracao = QLabel()
         self.rotulo_metodo_integracao.setWordWrap(True)
         self.rotulo_metodo_integracao.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         linha.addWidget(self.rotulo_metodo_integracao, 1)
         self.layout_controles.addWidget(painel, 5, 0, 1, 4)
         self.botao_velocidade.clicked.connect(self.gerar_velocidade)
-        self.checkbox_media_aceleracao.toggled.connect(self.atualizar_metodo_integracao)
         self.atualizar_metodo_integracao()
 
     def atualizar_metodo_integracao(self):
-        media = self.checkbox_media_aceleracao.isChecked()
-        etapa = "retirar somente a média da aceleração → " if media else ""
         self.rotulo_metodo_integracao.setText(
-            f"Aceleração tratada → {etapa}m/s² (×9,80665) → integrar → mm/s (×1000); v₀ = 0.\n"
-            "Deslocamento: integrar a velocidade → opção de retirar a reta do deslocamento."
+            'Aceleração em g → passa-banda → converter ×9810 para mm/s².\n'
+            'Velocidade: soma X·dt → subtrair ajuste linear por mínimos quadrados.\n'
+            'Posição: soma da velocidade corrigida ·dt → subtrair ajuste de grau 2.\n'
+            'Cada arquivo é um segmento independente, sem retirada automática da média da aceleração. '
+            'FFT e PSD usam a aceleração tratada em g, antes da conversão. '
+            'Os ajustes removem componentes lentas; não determinam a posição física absoluta.'
         )
         self.botao_velocidade.setToolTip(
-            f"Abre outra janela em mm/s: {etapa}integrar todo o sinal temporal tratado, "
-            "mesmo quando FFT ou RMS está visível. Preserva os dados de origem."
+            'Converta para mm/s² primeiro. Integra todo o sinal temporal e subtrai a reta '
+            'ajustada à velocidade, mesmo quando FFT/PSD/RMS está visível.'
         )
 
     def criar_controles_rms(self):
@@ -166,7 +212,14 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
             "Espectro de amplitude de pico do sinal tratado, sem média. "
             "Usa todo o registro com janela retangular; desmarque para voltar ao tempo."
         )
+        self.botao_psd = QPushButton('PSD')
+        self.botao_psd.setCheckable(True)
+        self.botao_psd.setEnabled(False)
+        self.botao_psd.setToolTip('Densidade espectral de potência em g²/Hz. Periodograma unilateral, '
+                                'sem média, janela retangular e registro completo.')
+        self.botao_psd.toggled.connect(lambda marcado: self.alternar_modo(self.botao_psd, marcado))
         linha.addWidget(self.botao_fft)
+        linha.addWidget(self.botao_psd)
         linha.addWidget(self.botao_rms)
         linha.addWidget(QLabel("Janela RMS:"))
         linha.addWidget(self.campo_janela_rms)
@@ -209,6 +262,11 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
         self.tempo = tempo
         self.df_original = canais.copy()
         self.df_sensores = canais.copy()
+        self.df_tratado_g = canais.copy()
+        self.botao_converter.blockSignals(True)
+        self.botao_converter.setChecked(False)
+        self.botao_converter.blockSignals(False)
+        self.botao_converter.setEnabled(True)
         self.reiniciar_limites_visualizacao()
         self.sensores_lynx = sensores
         self.info_arquivo = info
@@ -222,7 +280,11 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
         self.botao_fft.blockSignals(True)
         self.botao_fft.setChecked(False)
         self.botao_fft.blockSignals(False)
-        self.botao_velocidade.setEnabled(True)
+        self.botao_psd.blockSignals(True)
+        self.botao_psd.setChecked(False)
+        self.botao_psd.blockSignals(False)
+        self.botao_psd.setEnabled(True)
+        self.botao_velocidade.setEnabled(False)
         self.controle_passa_banda.configurar_amostragem(fs)
         self.botao_fft.setEnabled(True)
         self.botao_rms.setEnabled(True)
@@ -325,14 +387,11 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
 
     def alternar_modo(self, botao, marcado):
         if marcado:
-            outro = (
-                self.botao_fft
-                if botao is self.botao_rms
-                else self.botao_rms
-            )
-            outro.blockSignals(True)
-            outro.setChecked(False)
-            outro.blockSignals(False)
+            for outro in (self.botao_fft, self.botao_psd, self.botao_rms):
+                if outro is not botao:
+                    outro.blockSignals(True)
+                    outro.setChecked(False)
+                    outro.blockSignals(False)
 
         self.mudar_visualizacao()
 
@@ -342,7 +401,7 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
 
         self.checkbox_log_rms.setEnabled(self.botao_rms.isChecked())
         self.campo_janela_rms.setEnabled(
-            not self.botao_fft.isChecked()
+            not self.modo_espectral()
         )
 
         try:
@@ -352,7 +411,7 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
                 self, "Visualização inválida", str(erro)
             )
 
-            for botao in (self.botao_rms, self.botao_fft):
+            for botao in (self.botao_rms, self.botao_fft, self.botao_psd):
                 botao.blockSignals(True)
                 botao.setChecked(False)
                 botao.blockSignals(False)
@@ -365,12 +424,13 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
         self.mudar_visualizacao()
 
     def restaurar_original(self):
-        for botao in (self.botao_rms, self.botao_fft):
+        for botao in (self.botao_rms, self.botao_fft, self.botao_psd, self.botao_converter):
             botao.blockSignals(True)
             botao.setChecked(False)
             botao.blockSignals(False)
 
         self.checkbox_log_rms.setEnabled(False)
+        self.botao_velocidade.setEnabled(False)
         super().restaurar_original()
 
     def plotar_dados_lynx(self):
@@ -379,17 +439,24 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
 
         rms = self.botao_rms.isChecked()
         fft = self.botao_fft.isChecked()
+        psd = self.botao_psd.isChecked()
         log = rms and self.checkbox_log_rms.isChecked()
 
         self.info_rms = None
         self.info_fft = None
+        self.info_psd = None
 
         if fft:
             tempo_plot, dados_plot, self.info_fft = Processamento.fft_ac(
-                self.tempo, self.df_sensores
+                self.tempo, self.df_tratado_g
             )
             rotulo, unidade = "Amplitude de pico (AC)", "g"
             titulo_modo = "FFT"
+
+        elif psd:
+            tempo_plot, dados_plot, self.info_psd = Processamento.psd_ac(self.tempo, self.df_tratado_g)
+            rotulo, unidade = 'Densidade espectral de potência (AC)', 'g²/Hz'
+            titulo_modo = 'PSD'
 
         elif rms:
             tempo_plot, dados_plot, self.info_rms = Processamento.rms_ac(
@@ -397,13 +464,14 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
                 self.df_sensores,
                 self.campo_janela_rms.value(),
             )
-            dados_plot = dados_plot * 1000
-            rotulo, unidade = "RMS AC", "mg"
+            if not self.botao_converter.isChecked():
+                dados_plot = dados_plot * 1000
+            rotulo, unidade = 'RMS AC', ('mm/s²' if self.botao_converter.isChecked() else 'mg')
             titulo_modo = "RMS AC"
 
         else:
             tempo_plot, dados_plot = self.tempo, self.df_sensores
-            rotulo, unidade = "Aceleração", "g"
+            rotulo, unidade = "Aceleração", self.unidade_aceleracao
             titulo_modo = "sinal no tempo"
 
         if (any(EIXO_DESCONHECIDO in sensor for sensor in self.sensores_lynx)
@@ -421,8 +489,8 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
                 color="#333333",
             )
             grafico.setLabel("left", rotulo, units=unidade)
-            configurar_eixo_temporal(grafico, None if fft else self.inicio_arquivo)
-            if fft:
+            configurar_eixo_temporal(grafico, None if fft or psd else self.inicio_arquivo)
+            if fft or psd:
                 grafico.setLabel("bottom", "Frequência", units="Hz")
 
         cores = ["#1565C0", "#D55E00", "#18864B", "#8E44AD"]
@@ -481,6 +549,18 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
             if log:
                 modo += "; log (zeros sem ponto)"
 
+        elif psd:
+            modo = f"PSD AC: g²/Hz, Δf = {self.info_psd['resolucao_hz']:g} Hz; periodograma retangular"
+
+        self.descricao_exportacao = (self.rotulo_ativos.text() + '\n' + modo +
+                                    f'; unidade exibida: {unidade}. ' +
+                                    ('Conversão temporal g → mm/s²: ×9810.' if self.botao_converter.isChecked()
+                                     else 'Aceleração temporal em g.'))
+        self.metadados_tratados = {'fator_g_mm_s2': FATOR_G_MM_S2,
+                                  'conversao_ativa': self.botao_converter.isChecked(),
+                                  'filtros_aceleracao': self.config_filtros.copy(),
+                                  'modo': titulo_modo, 'unidade': unidade}
+
         self.statusBar().showMessage(
             f"{self.caminho_atual.name} | {fs:g} Hz | "
             f"{len(self.tempo)} amostras | {modo}"
@@ -488,6 +568,9 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
 
     def gerar_velocidade(self):
         if self.df_sensores is None:
+            return
+        if not self.botao_converter.isChecked():
+            QMessageBox.information(self, 'Velocidade', 'Clique em Converter g → mm/s² antes de gerar velocidade.')
             return
         canais = {}
         for numero, sensor in enumerate(self.sensores_lynx, 1):
@@ -501,19 +584,16 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
         canais = dict(sorted(canais.items()))
         try:
             entrada = self.df_sensores[list(canais)]
-            medias = None
-            if self.checkbox_media_aceleracao.isChecked():
-                entrada, medias = retirar_media_aceleracao(self.tempo, entrada)
-            dados = integrar_relativo(self.tempo, entrada, 'aceleracao')
+            dados = integrar_segmento(self.tempo, entrada)
+            janela = TelaCinematica(
+                self.tempo, dados, canais, 'velocidade', self.caminho_atual,
+                inicio_arquivo=self.inicio_arquivo,
+                metadados={'fator_g_mm_s2': FATOR_G_MM_S2,
+                           'filtros_aceleracao': self.config_filtros.copy(),
+                           'media_aceleracao_retirada': False},
+                intervalo_visualizacao=self._intervalo_temporal,
+            )
         except ValueError as erro:
             QMessageBox.warning(self, "Falha ao integrar", str(erro))
             return
-        janela = TelaIntegracao(
-            self.tempo, dados, canais, 'velocidade', self.caminho_atual,
-            inicio_arquivo=self.inicio_arquivo,
-            tratamentos=self.rotulo_ativos.text(),
-            medias_aceleracao=None if medias is None else medias.to_dict(),
-            intervalo_visualizacao=self._intervalo_temporal,
-            aceleracao_referencia=entrada,
-        )
         return mostrar_resultado(self, janela)

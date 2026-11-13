@@ -25,7 +25,7 @@ from isq_dataanalysys.interface.eixo_temporal import EixoDataHora
 from isq_dataanalysys.exportacao.html import criar_figura_html
 from isq_dataanalysys.leitores.metadados import ler_inicio_lynx
 from isq_dataanalysys.processamento.tempo import datas_locais, ROTULO_DATA_HORA
-from isq_dataanalysys.processamento.integracao import integrar_relativo
+from isq_dataanalysys.processamento.cinematica import integrar_segmento, retirar_ajuste
 
 
 class MetadadosTests(ArquivoMixin, unittest.TestCase):
@@ -123,7 +123,7 @@ class InterfaceDataHoraTests(ArquivoMixin, unittest.TestCase):
         acm = self.abrir(TelaLynxAcelerometria, caminho)
         ext = self.abrir(TelaLynxExtensometria, caminho)
         tempo, original = acm.tempo.copy(), acm.df_original.copy(deep=True)
-        acm.checkbox_media_aceleracao.setChecked(False)
+        acm.botao_converter.setChecked(True)
         acm.botao_velocidade.click()
         vel = acm.janelas_resultados[-1]
         self.janelas.append(vel)
@@ -135,15 +135,16 @@ class InterfaceDataHoraTests(ArquivoMixin, unittest.TestCase):
                 self.verificar_eixo(plot)
             np.testing.assert_array_equal(janela.tempo, tempo)
         pd.testing.assert_frame_equal(acm.df_original, original)
-        pd.testing.assert_frame_equal(vel.df_sensores, integrar_relativo(tempo, original, "aceleracao"))
-        pd.testing.assert_frame_equal(desp.df_deslocamento_integrado, integrar_relativo(tempo, vel.df_sensores, "velocidade"))
-        self.assertTrue((vel.df_sensores.iloc[0] == 0).all())
-        self.assertTrue((desp.df_deslocamento_integrado.iloc[0] == 0).all())
+        pd.testing.assert_frame_equal(vel.df_sensores, retirar_ajuste(tempo, integrar_segmento(tempo, original*9810), 1)[0])
+        pd.testing.assert_frame_equal(desp.df_integrado, integrar_segmento(tempo, vel.df_sensores))
+        np.testing.assert_allclose(vel.df_integrado.iloc[0], original.iloc[0]*9810*(tempo[1]-tempo[0]))
+        np.testing.assert_allclose(desp.df_integrado.iloc[0], vel.df_sensores.iloc[0]*(tempo[1]-tempo[0]))
 
     def test_exports_reais_svg_html_mantem_hora_local_zoom_e_snapshot(self):
         caminho = self.arquivo(["g"] * 3 + ["MPa"], alterar=lambda linhas: linhas[1].__setitem__(-1, "28/10/2026 15:55"))
         acm = self.abrir(TelaLynxAcelerometria, caminho)
         ext = self.abrir(TelaLynxExtensometria, caminho)
+        acm.botao_converter.setChecked(True)
         vel = acm.gerar_velocidade()
         desp = vel.gerar_deslocamento()
         self.janelas.extend([vel, desp])

@@ -75,14 +75,16 @@ class ExportacaoCsvFluxoTests(unittest.TestCase):
     def test_aceleracao_velocidade_deslocamento_recorte_e_reabertura(self):
         acm=self.abrir(TelaLynxAcelerometria)
         acm.aplicar_configuracao({'offset':2})
+        acm.botao_converter.click()
         fonte=acm.df_sensores.copy(deep=True)
         acm.aplicar_intervalo_temporal((2400,3600))
         acm.checkboxes_eixos[(1,'Y')].setChecked(False)
+        acm.botao_converter.setChecked(True)
         vel=acm.gerar_velocidade()
         disp=vel.gerar_deslocamento()
         self.janelas.extend([vel,disp])
         self.app.processEvents()
-        for w,nome,unidade in [(acm,'aceleracao','g'),(vel,'velocidade','mm/s'),(disp,'deslocamento','mm')]:
+        for w,nome,unidade in [(acm,'aceleracao','mm/s²'),(vel,'velocidade','mm/s'),(disp,'deslocamento','mm')]:
             caminho,relido=self.exportar(w,nome)
             np.testing.assert_array_equal(relido.tempo,np.arange(2400,3601))
             self.assertEqual(list(relido.dados),[1,3])
@@ -123,6 +125,7 @@ class ExportacaoCsvFluxoTests(unittest.TestCase):
     def test_html_timestamp_todas_linhas_e_intervalo_exato(self):
         acm=self.abrir(TelaLynxAcelerometria)
         acm.aplicar_intervalo_temporal((2400,3600))
+        acm.botao_converter.setChecked(True)
         vel=acm.gerar_velocidade()
         self.janelas.append(vel)
         self.app.processEvents()

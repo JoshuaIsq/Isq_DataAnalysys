@@ -1,5 +1,9 @@
 # Reta removida do deslocamento e verificação por derivação
 
+> Documento histórico da revisão 2026.11.12.1. O fluxo atual (2026.11.13.1) usa
+> soma por segmento, reta após a velocidade e grau 2 após a posição. Consulte
+> [o guia atual](INTEGRACAO_ACELEROMETRIA.md).
+
 Na revisão **2026.11.12.1**, o fluxo mantém os tratamentos escolhidos e a opção
 de retirar somente a média da aceleração. Ao clicar em **Gerar velocidade**,
 a conversão é automática: **g × 9,80665 → m/s² → integrar → m/s × 1000 → mm/s**.

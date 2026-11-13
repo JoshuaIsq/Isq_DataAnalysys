@@ -44,7 +44,7 @@ class ExportacaoGraficos:
             raise ValueError('Abra um arquivo primeiro.')
         plots = self.plots_para_exportar()
         if any(p.getAxis('bottom').labelUnits == 'Hz' for p in plots):
-            raise ValueError('CSV tratado usa dados no tempo. Desative FFT para exportar; RMS temporal é aceito.')
+            raise ValueError('CSV tratado usa dados no tempo. Desative FFT/PSD para exportar; RMS temporal é aceito.')
         colunas, canais, base = {}, {}, None
         for plot in plots:
             unidade = plot.getAxis('left').labelUnits or ''
@@ -100,7 +100,7 @@ class ExportacaoGraficos:
                         modalidade=getattr(self,'grandeza',type(self).__name__))
         if getattr(getattr(self,'botao_rms',None),'isChecked',lambda:False)():
             metadata.update(modo='RMS AC',janela_rms_s=float(self.campo_janela_rms.value()),
-                            valores_csv='RMS em escala linear, em mg')
+                            valores_csv='RMS em escala linear, em ' + next(iter(canais.values()))['unidade'])
         fs_origem = getattr(self,'info_processamento',{}).get('fs')
         if fs_origem is not None:
             metadata['fs_origem_hz'] = float(fs_origem)

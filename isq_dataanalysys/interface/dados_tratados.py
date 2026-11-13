@@ -175,7 +175,7 @@ class TelaDadosTratados(ExportacaoGraficos, QMainWindow):
         self.graficos_eixos = {}
         self.curvas = {}
         grupos = {}
-        nomes = {'g': 'Aceleração', 'mg': 'Aceleração RMS', 'mm/s': 'Velocidade',
+        nomes = {'g': 'Aceleração', 'mg': 'Aceleração RMS', 'mm/s²': 'Aceleração', 'mm/s': 'Velocidade',
                  'mm': 'Deslocamento', 'MPa': 'Tensão', 'μm/m': 'Deformação',
                  'µm/m': 'Deformação', 'mm/m': 'Deformação'}
         for numero, (canal, info) in enumerate(self.canais.items()):

@@ -16,6 +16,7 @@ from PySide6.QtCore import QCoreApplication, QEvent, QPoint, Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 from isq_dataanalysys.processamento.integracao import integrar_relativo, retirar_media_aceleracao
+from isq_dataanalysys.processamento.cinematica import integrar_segmento, retirar_ajuste
 from isq_dataanalysys.interface.acelerometria import TelaLynxAcelerometria
 from isq_dataanalysys.exportacao.html import criar_figura_html
 from isq_dataanalysys import __version__ as VERSAO
@@ -212,13 +213,14 @@ class FluxoTests(ArquivoMixin, unittest.TestCase):
         self.janelas.clear()
 
     def test_fluxo_temporal_independente_em_fft_e_rms_e_exportacoes(self):
-        for modo in ('fft', 'rms'):
+        for modo in ('fft', 'psd', 'rms'):
             acm = TelaLynxAcelerometria()
             self.janelas.append(acm)
             acm.show()
             self.assertFalse(acm.botao_velocidade.isEnabled())
             acm.importar_caminho(self.arquivo(['g']*6, encoding='cp1252'))
             acm.aplicar_configuracao({'offset': 3, 'passa_banda': (10, 100)})
+            acm.botao_converter.click()
             getattr(acm, 'botao_'+modo).click()
             acm.checkboxes_eixos[(1, 'Y')].setChecked(False)
             acm.checkboxes_canais[2].setChecked(False)
@@ -230,9 +232,9 @@ class FluxoTests(ArquivoMixin, unittest.TestCase):
             self.assertTrue(acm.isVisible())
             self.assertTrue(vel.isVisible())
             self.assertEqual(list(vel.df_sensores), [1, 3])
-            entrada = original[[1,3]].subtract(original[[1,3]].mean(), axis='columns')
-            np.testing.assert_allclose(vel.df_sensores, integral_referencia(acm.tempo, entrada.to_numpy()*9806.65), atol=1e-9)
-            self.assertEqual(set(vel.medias_aceleracao), {1,3})
+            esperado, _ = retirar_ajuste(acm.tempo, integrar_segmento(acm.tempo, original[[1,3]]), 1)
+            np.testing.assert_allclose(vel.df_sensores, esperado, atol=1e-9)
+            self.assertFalse(vel.metadados_tratados['media_aceleracao_retirada'])
             self.assertFalse(np.shares_memory(acm.tempo, vel.tempo))
             vel.checkboxes_canais[3].setChecked(False)
             vel.botao_deslocamento.click()
@@ -241,18 +243,18 @@ class FluxoTests(ArquivoMixin, unittest.TestCase):
             self.app.processEvents()
             self.assertTrue(vel.isVisible())
             self.assertTrue(desp.isVisible())
-            pd.testing.assert_frame_equal(desp.df_deslocamento_integrado, integrar_relativo(vel.tempo, vel.df_sensores[[1]], 'velocidade'))
-            self.assertTrue(desp.correcao_rampa_ativa)
+            pd.testing.assert_frame_equal(desp.df_integrado, integrar_segmento(vel.tempo, vel.df_sensores[[1]]))
+            self.assertEqual(desp.grau_ajuste, 2)
             pd.testing.assert_frame_equal(acm.df_sensores, original)
             for k, c in acm.curvas_lynx.items():
                 for a, b in zip(c.getOriginalDataset(), curvas[k]):
                     np.testing.assert_array_equal(a, b)
-            for janela, unidade in ((acm, 'g' if modo == 'fft' else 'mg'), (vel, 'mm/s'), (desp, 'mm')):
+            for janela, unidade in ((acm, 'g' if modo == 'fft' else 'g²/Hz' if modo == 'psd' else 'mm/s²'), (vel, 'mm/s'), (desp, 'mm')):
                 self.assertEqual(janela.graficos_eixos['X'].getAxis('left').labelUnits, unidade)
                 fig = criar_figura_html(list(janela.graficos_eixos.values()))
                 if janela is not acm:
                     self.assertEqual(len(fig.data), 1)
-                    self.assertIn('intervalo:', janela.descricao_exportacao)
+                    self.assertIn('registro completo:', janela.descricao_exportacao)
                 with tempfile.TemporaryDirectory() as pasta:
                     with patch.object(QFileDialog, 'getExistingDirectory', return_value=pasta), patch.object(QMessageBox, 'information'):
                         janela.exportar_svg()
@@ -277,95 +279,64 @@ class FluxoTests(ArquivoMixin, unittest.TestCase):
             self.assertTrue(acm.isVisible())
         self.aviso.assert_not_called()
 
-    def test_passa_banda_integracao_fiel_e_metodo_nas_exportacoes(self):
+    def test_passa_banda_ajustes_e_metodo_nas_exportacoes(self):
         acm = self.janela_aceleracao(3)
-        acm.checkbox_media_aceleracao.setChecked(False)
         acm.aplicar_configuracao({'passa_banda': (1,30)})
         origem = acm.df_sensores.copy(deep=True)
-        tratamentos = acm.rotulo_ativos.text()
-        esperado_v = integral_referencia(acm.tempo, origem.to_numpy()*9806.65)
+        esperado_v, _ = retirar_ajuste(acm.tempo, integrar_segmento(acm.tempo, origem), 1)
         vel = acm.gerar_velocidade()
         self.janelas.append(vel)
         np.testing.assert_allclose(vel.df_sensores, esperado_v, atol=1e-9)
-        # Mudar a origem não muda os tratamentos registrados nem a velocidade já aberta.
         acm.restaurar_original()
         disp = vel.gerar_deslocamento()
         self.janelas.append(disp)
-        disp.checkbox_correcao_rampa.setChecked(False)
-        np.testing.assert_allclose(disp.df_sensores, integral_referencia(vel.tempo, esperado_v), atol=1e-9)
+        esperado_d, _ = retirar_ajuste(vel.tempo, integrar_segmento(vel.tempo, esperado_v), 2)
+        np.testing.assert_allclose(disp.df_sensores, esperado_d, atol=1e-9)
         for janela in (vel, disp):
-            self.assertEqual(janela.tratamentos_origem, tratamentos)
-            self.assertIn('Passa-banda: 1–30 Hz', janela.descricao_exportacao)
-            self.assertIsNone(janela.medias_aceleracao)
-            self.assertIn('Sem retirada da média da aceleração', janela.descricao_exportacao)
-            self.assertNotIn('remover ajuste', janela.descricao_exportacao)
-            figura = criar_figura_html(janela.plots_para_exportar(), descricao=janela.descricao_exportacao)
-            for curva, canal in zip(figura.data, janela.df_sensores):
-                np.testing.assert_allclose(curva.y, janela.df_sensores[canal], atol=1e-12)
+            self.assertEqual(janela.metadados_tratados['filtros_aceleracao']['passa_banda'], (1,30))
+            self.assertFalse(janela.metadados_tratados['media_aceleracao_retirada'])
+            self.assertEqual(janela.metadados_tratados['fator_g_mm_s2'], 9810)
             with tempfile.TemporaryDirectory() as pasta:
-                with patch.object(QFileDialog, 'getExistingDirectory', return_value=pasta), \
-                        patch.object(QMessageBox, 'information'):
+                with patch.object(QFileDialog, 'getExistingDirectory', return_value=pasta), patch.object(QMessageBox, 'information'):
                     janela.exportar_svg()
                     janela.exportar_html()
                 for extensao in ('svg','html'):
                     arquivos = list(Path(pasta).glob(f'*.{extensao}'))
                     self.assertEqual(len(arquivos), 1)
                     conteudo = texto_exportacao(arquivos[0])
-                    self.assertTrue('trapézios' in conteudo, 'Método ausente na exportação')
-                    self.assertTrue('Sem retirada da média da aceleração' in conteudo,
-                                    'Referência da integral ausente na exportação')
-                    self.assertTrue('1–30 Hz' in conteudo, 'Cortes do filtro ausentes na exportação')
+                    self.assertIn('Sum[Xdt]', conteudo)
+                    self.assertIn('mínimos quadrados', conteudo)
+                    self.assertIn('1–30 Hz', conteudo)
         self.aviso.assert_not_called()
 
-    def test_media_so_aceleracao_por_padrao_origem_independente_e_exportacoes(self):
+    def test_sem_media_automatica_conversao_unica_e_origem_independente(self):
         acm = self.janela_aceleracao(3)
-        self.assertTrue(acm.checkbox_media_aceleracao.isChecked())
+        self.assertFalse(hasattr(acm, 'checkbox_media_aceleracao'))
         acm.aplicar_configuracao({'passa_banda': (1,30)})
         origem = acm.df_sensores.copy(deep=True)
-        curvas = {c: np.array(v.getOriginalDataset()[1],copy=True) for c,v in acm.curvas_lynx.items()}
-        medias = origem.mean()
-        entrada = origem.subtract(medias, axis='columns')
-        esperado_v = integral_referencia(acm.tempo, entrada.to_numpy()*9806.65)
+        np.testing.assert_allclose(origem, acm.df_tratado_g*9810)
+        acm.aplicar_configuracao({'passa_banda': (1,30)})
+        pd.testing.assert_frame_equal(acm.df_sensores, origem)
         vel = acm.gerar_velocidade()
         self.janelas.append(vel)
-        np.testing.assert_allclose(vel.df_sensores, esperado_v, atol=1e-9)
-        for c in medias.index:
-            self.assertAlmostEqual(vel.medias_aceleracao[c], medias[c], places=12)
-        pd.testing.assert_frame_equal(acm.df_sensores, origem)
-        for c,curva in acm.curvas_lynx.items():
-            np.testing.assert_array_equal(curva.getOriginalDataset()[1],curvas[c])
-        # Configuração e médias permanecem no resultado já gerado.
-        acm.checkbox_media_aceleracao.setChecked(False)
+        pd.testing.assert_frame_equal(vel.df_integrado, integrar_segmento(acm.tempo, origem))
+        copia = vel.df_sensores.copy()
+        acm.botao_converter.setChecked(False)
+        np.testing.assert_allclose(acm.df_sensores, acm.df_tratado_g)
         acm.restaurar_original()
+        pd.testing.assert_frame_equal(vel.df_sensores, copia)
         vel.checkboxes_canais[3].setChecked(False)
         disp = vel.gerar_deslocamento()
         self.janelas.append(disp)
-        np.testing.assert_allclose(disp.df_deslocamento_integrado,
-                                   integral_referencia(vel.tempo, esperado_v[:,:2]), atol=1e-9)
-        self.assertEqual(set(disp.medias_aceleracao), {1,2})
-        self.assertTrue((vel.df_sensores.iloc[0] == 0).all())
-        self.assertTrue((disp.df_deslocamento_integrado.iloc[0] == 0).all())
-        np.testing.assert_allclose(disp.df_sensores.iloc[0],-disp.ajustes_rampa['intercepto_mm'],atol=1e-10)
-        self.assertIn('sem retirar sua média',disp.descricao_exportacao)
-        for janela in (vel,disp):
-            with tempfile.TemporaryDirectory() as pasta:
-                with patch.object(QFileDialog,'getExistingDirectory',return_value=pasta), \
-                        patch.object(QMessageBox,'information'):
-                    janela.exportar_svg()
-                    janela.exportar_html()
-                for extensao in ('svg','html'):
-                    arquivos = list(Path(pasta).glob(f'*.{extensao}'))
-                    self.assertEqual(len(arquivos),1)
-                    texto = texto_exportacao(arquivos[0])
-                    for esperado in ('Média aritmética retirada somente da aceleração',
-                                     'Valores em g', 'Canal 1:', 'Passa-banda: 1–30 Hz'):
-                        self.assertTrue(esperado in texto, f'Metadado ausente: {esperado}')
+        pd.testing.assert_frame_equal(disp.df_integrado, integrar_segmento(vel.tempo, copia[[1,2]]))
+        np.testing.assert_allclose(disp.df_sensores.iloc[0], disp.df_integrado.iloc[0]-disp.ajustes['c0'], atol=1e-10)
         self.aviso.assert_not_called()
 
     def test_sem_canais_nao_abre_janela(self):
         acm = TelaLynxAcelerometria()
         self.janelas.append(acm)
         acm.importar_caminho(self.arquivo(['g']*3))
+        acm.botao_converter.click()
         acm.checkboxes_canais[1].setChecked(False)
         with patch.object(QMessageBox, 'information'):
             acm.botao_velocidade.click()
@@ -377,6 +348,7 @@ class FluxoTests(ArquivoMixin, unittest.TestCase):
         acm.resize(1330, 625)
         acm.show()
         acm.importar_caminho(self.arquivo(['g']*canais))
+        acm.botao_converter.click()
         self.app.processEvents()
         return acm
 
@@ -408,7 +380,7 @@ class FluxoTests(ArquivoMixin, unittest.TestCase):
         self.assertEqual(len(vel.janelas_resultados), 1)
         desp = vel.janelas_resultados[0]
         self.janelas.append(desp)
-        self.verificar_botao_visivel(desp, desp.exportar)
+        self.verificar_botao_visivel(desp, desp.botao_exportar)
         for janela in (acm, vel, desp):
             self.assertTrue(janela.isVisible())
             self.assertIsNone(janela.parent())
@@ -447,14 +419,14 @@ class FluxoTests(ArquivoMixin, unittest.TestCase):
     def test_falha_de_calculo_nao_altera_origem_ou_abre_janela(self):
         acm = self.janela_aceleracao(3)
         original = acm.df_sensores.copy()
-        with patch('isq_dataanalysys.interface.acelerometria.integrar_relativo', side_effect=ValueError('Sinal inválido')):
+        with patch('isq_dataanalysys.interface.acelerometria.integrar_segmento', side_effect=ValueError('Sinal inválido')):
             acm.botao_velocidade.click()
         self.assertEqual(acm.janelas_resultados, [])
         pd.testing.assert_frame_equal(acm.df_sensores, original)
         vel = acm.gerar_velocidade()
         self.janelas.append(vel)
         copia_vel = vel.df_sensores.copy()
-        with patch('isq_dataanalysys.interface.integracao.integrar_relativo', side_effect=ValueError('Sinal inválido')):
+        with patch('isq_dataanalysys.interface.cinematica.integrar_segmento', side_effect=ValueError('Sinal inválido')):
             vel.botao_deslocamento.click()
         self.assertEqual(vel.janelas_resultados, [])
         pd.testing.assert_frame_equal(vel.df_sensores, copia_vel)
@@ -479,8 +451,8 @@ class FluxoTests(ArquivoMixin, unittest.TestCase):
             salvar_html = FiguraHtml.write_html
 
             def verificar_svg(fig, *args, **kwargs):
-                self.assertIn('intervalo:', fig._suptitle.get_text())
-                self.assertIn('= 0', fig._suptitle.get_text())
+                self.assertIn('registro completo:', fig._suptitle.get_text())
+                self.assertIn('Sum[Xdt]', fig._suptitle.get_text())
                 self.assertIn(unidade, fig.axes[0].get_ylabel())
                 self.assertEqual(sum(len(e.lines) for e in fig.axes), 1)
                 np.testing.assert_array_equal(fig.axes[0].lines[0].get_ydata(), janela.df_sensores[1])
@@ -491,8 +463,8 @@ class FluxoTests(ArquivoMixin, unittest.TestCase):
                 return salvar_svg(fig, *args, **kwargs)
 
             def verificar_html(fig, *args, **kwargs):
-                self.assertIn('intervalo:', fig.layout.title.text)
-                self.assertIn('= 0', fig.layout.title.text)
+                self.assertIn('registro completo:', fig.layout.title.text)
+                self.assertIn('Sum[Xdt]', fig.layout.title.text)
                 self.assertEqual(len(fig.data), 1)
                 self.assertIn(unidade, fig.layout.yaxis.title.text)
                 np.testing.assert_array_equal(fig.data[0].y, janela.df_sensores[1])
