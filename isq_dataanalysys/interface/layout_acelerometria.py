@@ -1,9 +1,19 @@
 """Apresentação da acelerometria: controles e canais na mesma lateral."""
+
 from PySide6.QtCore import Qt, QRectF, QSize
 from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (
-    QButtonGroup, QFrame, QGridLayout, QHBoxLayout, QLabel, QScrollArea,
-    QSizePolicy, QStackedWidget, QToolButton, QVBoxLayout, QWidget,
+    QButtonGroup,
+    QFrame,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QScrollArea,
+    QSizePolicy,
+    QStackedWidget,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
 )
 
 
@@ -92,7 +102,7 @@ def largura_flexivel(widget, minimo=0):
 def montar_lateral_acelerometria(tela):
     """Reposiciona os controles existentes, preservando seus sinais e estados."""
     anterior = tela.takeCentralWidget()
-    canais = anterior.findChild(QScrollArea).takeWidget()
+    canais = tela.rolagem_canais.takeWidget()
     central = QWidget()
     central.setObjectName('acelerometria_central')
     central.setStyleSheet(ESTILO)

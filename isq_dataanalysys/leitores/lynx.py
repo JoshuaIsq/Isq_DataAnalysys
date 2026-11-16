@@ -1,11 +1,18 @@
-"""Leitura comum: a posição identifica o canal, e Unit define a grandeza."""
+"""Leitura dos CSVs Lynx: a posição identifica o canal e Unit define a grandeza."""
 import csv
 
 import numpy as np
 import pandas as pd
 
-from isq_dataanalysys.processamento.sinais import Processamento
 from isq_dataanalysys.leitores.codificacao import detectar_codificacao_csv
+from isq_dataanalysys.processamento.sinais import Processamento
+
+
+_ETIQUETAS = ("Name", "Unit", "HighLim", "LowLim", "Time (s)")
+_UNIDADES = {
+    "mpa": "MPa", "μm/m": "μm/m", "um/m": "μm/m",
+    "mm/m": "mm/m", "g": "g", "mm": "mm",
+}
 
 
 class LinhaFinalIncompleta(ValueError):
@@ -13,12 +20,13 @@ class LinhaFinalIncompleta(ValueError):
 
 
 def normalizar_unidade(unidade):
+    """Padroniza a escrita da unidade, sem converter os valores medidos."""
     texto = "".join(unidade.split()).casefold().replace("µ", "μ")
-    return {"mpa": "MPa", "μm/m": "μm/m", "um/m": "μm/m",
-            "mm/m": "mm/m", "g": "g", "mm": "mm"}.get(texto, unidade.strip())
+    return _UNIDADES.get(texto, unidade.strip())
 
 
 def descrever_canais(canais):
+    """Monta a descrição dos canais para as mensagens de importação."""
     return "\n".join(
         f"Canal {c['posicao']} — {c['nome']} ({c['unidade_original'] or 'sem unidade'})"
         for c in canais
@@ -26,6 +34,7 @@ def descrever_canais(canais):
 
 
 def aviso_unidades(info, modalidade):
+    """Retorna o aviso sobre canais de outras unidades, sem exibir uma janela."""
     if not info["ignorados"]:
         return ""
     return (
@@ -39,99 +48,128 @@ def aviso_unidades(info, modalidade):
     )
 
 
-def ler_canais_lynx(caminho, unidades_aceitas, modalidade, ignorar_ultima_incompleta=False):
-    codificacao = detectar_codificacao_csv(caminho)
-    with open(caminho, encoding=codificacao, newline="") as arquivo:
-        leitor = csv.reader(arquivo, delimiter=";")
-        cabecalho = [next(leitor, []) for _ in range(5)]
-    for linha, etiqueta in zip(cabecalho, ("Name", "Unit", "HighLim", "LowLim", "Time (s)")):
+def _ler_cabecalho(arquivo):
+    """Valida as cinco linhas e deixa o arquivo no início das amostras."""
+    leitor = csv.reader(arquivo, delimiter=";")
+    cabecalho = [next(leitor, []) for _ in _ETIQUETAS]
+    for linha, etiqueta in zip(cabecalho, _ETIQUETAS):
         if not linha or linha[0].strip() != etiqueta:
-            raise ValueError(f"Cabeçalho inválido: esperada a linha {etiqueta}.")
+            raise ValueError(
+                f"Cabeçalho inválido: esperada a linha {etiqueta}. "
+                "Favor conferir o modelo da placa."
+            )
+    return cabecalho
 
-    # Nome vazio não encerra os canais: a posição e a unidade ainda permitem
-    # importar essa coluna. Remove apenas o espaço vazio antes dos metadados.
-    fim_canais = len(cabecalho[0])
-    for posicao, celula in enumerate(cabecalho[0][1:], 1):
+
+def _selecionar_canais(cabecalho, unidades_aceitas, modalidade):
+    """Descreve e separa os canais, preservando suas posições no CSV."""
+    nomes, unidades = cabecalho[:2]
+    fim = len(nomes)
+    for posicao, celula in enumerate(nomes[1:], 1):
         if celula.strip().casefold().startswith(("sampfreq:", "starttime")):
-            fim_canais = posicao
+            fim = posicao
             break
-    while fim_canais > 1:
-        posicao = fim_canais - 1
-        nome_vazio = not cabecalho[0][posicao].strip()
-        unidade_vazia = posicao >= len(cabecalho[1]) or not cabecalho[1][posicao].strip()
-        if not (nome_vazio and unidade_vazia):
+    # Remove só o espaço final sem nome nem unidade, antes dos metadados.
+    while fim > 1:
+        posicao = fim - 1
+        unidade_vazia = posicao >= len(unidades) or not unidades[posicao].strip()
+        if nomes[posicao].strip() or not unidade_vazia:
             break
-        fim_canais -= 1
-    nomes, avisos = [], []
-    for posicao in range(1, fim_canais):
-        nome = cabecalho[0][posicao].strip()
+        fim -= 1
+    if fim == 1:
+        raise ValueError("O arquivo não informa canais na primeira linha.")
+    if len(unidades) < fim:
+        raise ValueError("Faltam unidades na segunda linha do cabeçalho.")
+
+    aceitos, ignorados, avisos = [], [], []
+    for posicao in range(1, fim):
+        nome = nomes[posicao].strip()
         if not nome:
             nome = f"Canal {posicao} (sem nome)"
             avisos.append(f"Canal {posicao}: nome vazio no CSV; identificado pela posição original.")
-        nomes.append(nome)
-    if not nomes:
-        raise ValueError("O arquivo não informa canais na primeira linha.")
-    if len(cabecalho[1]) < len(nomes) + 1:
-        raise ValueError("Faltam unidades na segunda linha do cabeçalho.")
-
-    descricoes = [
-        dict(posicao=n, nome=nome, unidade_original=cabecalho[1][n].strip(),
-             unidade=normalizar_unidade(cabecalho[1][n]))
-        for n, nome in enumerate(nomes, 1)
-    ]
-    aceitos = [c for c in descricoes if c["unidade"] in unidades_aceitas]
-    ignorados = [c for c in descricoes if c["unidade"] not in unidades_aceitas]
+        canal = dict(
+            posicao=posicao, nome=nome, unidade_original=unidades[posicao].strip(),
+            unidade=normalizar_unidade(unidades[posicao]),
+        )
+        if canal["unidade"] in unidades_aceitas:
+            aceitos.append(canal)
+        else:
+            ignorados.append(canal)
     if not aceitos:
         raise ValueError(
             f"Nenhum canal compatível com {modalidade}. "
             f"Unidades aceitas: {', '.join(unidades_aceitas)}.\n\n"
             + descrever_canais(ignorados) + "\n\nConfira o CSV e a opção de análise."
         )
+    return aceitos, ignorados, avisos, fim - 1
 
-    # Valores inválidos em outra medição não impedem a importação selecionada.
-    tabela = pd.read_csv(caminho, sep=";", skiprows=5, header=None,
-                         encoding=codificacao, dtype=str, keep_default_na=False,
-                         skip_blank_lines=False)
-    while tabela.shape[1] > len(nomes) + 1 and tabela.iloc[:, -1].str.strip().eq("").all():
+
+def _ler_amostras(arquivo, quantidade_canais, posicoes, ignorar_ultima_incompleta):
+    """Converte números na leitura; limpa apenas colunas que ainda sejam texto."""
+    try:
+        tabela = pd.read_csv(
+            arquivo, sep=";", header=None, decimal=",", float_precision="round_trip",
+            keep_default_na=False, skip_blank_lines=False, low_memory=False,
+        )
+    except pd.errors.EmptyDataError as erro:
+        raise ValueError("O arquivo não contém amostras após o cabeçalho.") from erro
+
+    # Lê todas as colunas para não esconder colunas extras com dados.
+    while tabela.shape[1] > quantidade_canais + 1:
+        ultima = tabela.iloc[:, -1]
+        if pd.api.types.is_numeric_dtype(ultima) or not ultima.str.strip().eq("").all():
+            break
         tabela = tabela.iloc[:, :-1]
-    if tabela.empty or tabela.shape[1] != len(nomes) + 1:
+    if tabela.empty or tabela.shape[1] != quantidade_canais + 1:
         raise ValueError("Esperados tempo e uma coluna de dados para cada canal do cabeçalho.")
-    posicoes = [c["posicao"] for c in aceitos]
-    selecionada = tabela.iloc[:, [0] + posicoes].copy()
-    vazias = selecionada.apply(lambda coluna: coluna.str.strip().eq(""))
-    linhas_ignoradas = 0
-    if vazias.iloc[:-1].any().any():
+
+    selecionadas = {}
+    linhas_vazias = np.zeros(len(tabela), dtype=bool)
+    for posicao in [0] + posicoes:
+        coluna = tabela[posicao]
+        if not pd.api.types.is_numeric_dtype(coluna) or pd.api.types.is_bool_dtype(coluna):
+            coluna = coluna.astype(str).str.strip()
+            linhas_vazias |= coluna.eq("").to_numpy()
+        selecionadas[posicao] = coluna
+
+    if linhas_vazias[:-1].any():
         raise ValueError("Existem campos vazios antes da última linha nos canais selecionados.")
-    if vazias.iloc[-1].any():
-        if not ignorar_ultima_incompleta:
-            raise LinhaFinalIncompleta(
-                f"A última linha está incompleta nos canais selecionados. "
-                f"Há {len(tabela) - 1} linhas anteriores. Isso pode indicar um arquivo truncado."
-            )
-        selecionada = selecionada.iloc[:-1].copy()
-        linhas_ignoradas = 1
-        avisos.append("Última linha incompleta ignorada na importação; CSV original preservado.")
-    numerica = selecionada.apply(
-        lambda coluna: pd.to_numeric(coluna.str.strip().str.replace(",", ".", regex=False), errors="coerce")
-    )
-    tempo = numerica.iloc[:, 0].to_numpy(dtype=float)
-    canais = numerica.iloc[:, 1:].copy()
-    canais.columns = posicoes
-    fs = Processamento.validar_dados(tempo, canais)
+    linhas_ignoradas = int(linhas_vazias[-1])
+    if linhas_ignoradas and not ignorar_ultima_incompleta:
+        raise LinhaFinalIncompleta(
+            "A última linha está incompleta nos canais selecionados. "
+            f"Há {len(tabela) - 1} linhas anteriores. Isso pode indicar um arquivo truncado."
+        )
 
-    fs_cabecalho = None
-    linha_nomes = [v.strip() for v in cabecalho[0]]
-    if "SampFreq:" in linha_nomes:
-        posicao = linha_nomes.index("SampFreq:") + 1
-        try:
-            fs_cabecalho = float(linha_nomes[posicao].lower().replace("hz", "").replace(",", ".").strip())
-        except (IndexError, ValueError) as erro:
-            raise ValueError("SampFreq sem valor válido no cabeçalho.") from erro
-        if not np.isfinite(fs_cabecalho) or fs_cabecalho <= 0:
-            raise ValueError("Taxa inválida no cabeçalho.")
-        if not np.isclose(fs, fs_cabecalho, rtol=1e-4):
-            avisos.append(f"Cabeçalho: {fs_cabecalho:g} Hz; tempo: {fs:g} Hz. Usando o tempo.")
+    # Uma única seleção final substitui as cópias intermediárias da tabela.
+    fim = len(tabela) - linhas_ignoradas
+    for posicao, coluna in selecionadas.items():
+        coluna = coluna.iloc[:fim]
+        if not pd.api.types.is_numeric_dtype(coluna):
+            coluna = pd.to_numeric(coluna.str.replace(",", ".", regex=False), errors="coerce")
+        selecionadas[posicao] = coluna
+    tempo = selecionadas.pop(0).to_numpy(dtype=float)
+    canais = pd.DataFrame(selecionadas)
+    return tempo, canais, linhas_ignoradas
 
+
+def _ler_frequencia(cabecalho):
+    """Lê SampFreq quando presente; a taxa efetiva continua vindo do tempo."""
+    linha_nomes = [valor.strip() for valor in cabecalho[0]]
+    if "SampFreq:" not in linha_nomes:
+        return None
+    posicao = linha_nomes.index("SampFreq:") + 1
+    try:
+        frequencia = float(linha_nomes[posicao].lower().replace("hz", "").replace(",", ".").strip())
+    except (IndexError, ValueError) as erro:
+        raise ValueError("SampFreq sem valor válido no cabeçalho.") from erro
+    if not np.isfinite(frequencia) or frequencia <= 0:
+        raise ValueError("Taxa inválida no cabeçalho.")
+    return frequencia
+
+
+def _avaliar_qualidade(cabecalho, canais, aceitos):
+    """Registra sinal constante e valores fora dos limites, sem alterar amostras."""
     qualidade = {}
     for canal in aceitos:
         n = canal["posicao"]
@@ -151,10 +189,35 @@ def ler_canais_lynx(caminho, unidades_aceitas, modalidade, ignorar_ultima_incomp
             problemas.append(f"{fora} amostras fora dos limites informados no arquivo")
         if problemas:
             qualidade[n] = "; ".join(problemas)
+    return qualidade
 
-    info = dict(fs=fs, fs_cabecalho=fs_cabecalho, avisos=avisos, qualidade=qualidade,
-                linhas_ignoradas=linhas_ignoradas, ignorados=ignorados,
-                nomes={c["posicao"]: c["nome"] for c in aceitos},
-                unidades={c["posicao"]: c["unidade"] for c in aceitos},
-                unidade=aceitos[0]["unidade"])
+
+def ler_canais_lynx(caminho, unidades_aceitas, modalidade, ignorar_ultima_incompleta=False):
+    """Retorna tempo, canais e info, mantendo o contrato dos leitores de modalidade."""
+    codificacao = detectar_codificacao_csv(caminho)
+    with open(caminho, encoding=codificacao, newline="") as arquivo:
+        cabecalho = _ler_cabecalho(arquivo)
+        aceitos, ignorados, avisos, quantidade = _selecionar_canais(
+            cabecalho, unidades_aceitas, modalidade
+        )
+        posicoes = [canal["posicao"] for canal in aceitos]
+        tempo, canais, linhas_ignoradas = _ler_amostras(
+            arquivo, quantidade, posicoes, ignorar_ultima_incompleta
+        )
+    if linhas_ignoradas:
+        avisos.append("Última linha incompleta ignorada na importação; CSV original preservado.")
+
+    fs = Processamento.validar_dados(tempo, canais)
+    fs_cabecalho = _ler_frequencia(cabecalho)
+    if fs_cabecalho is not None and not np.isclose(fs, fs_cabecalho, rtol=1e-4):
+        avisos.append(f"Cabeçalho: {fs_cabecalho:g} Hz; tempo: {fs:g} Hz. Usando o tempo.")
+
+    info = dict(
+        fs=fs, fs_cabecalho=fs_cabecalho, avisos=avisos,
+        qualidade=_avaliar_qualidade(cabecalho, canais, aceitos),
+        linhas_ignoradas=linhas_ignoradas, ignorados=ignorados,
+        nomes={c["posicao"]: c["nome"] for c in aceitos},
+        unidades={c["posicao"]: c["unidade"] for c in aceitos},
+        unidade=aceitos[0]["unidade"],  # Compatibilidade com as telas existentes.
+    )
     return tempo, canais, info

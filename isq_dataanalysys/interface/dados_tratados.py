@@ -1,20 +1,57 @@
-"""Visualização de medições já tratadas, sem reaplicar filtros ou integrações."""
-from copy import deepcopy
-from pathlib import Path
+"""Janelas de dados tratados e gráficos unificados, sem recalcular os sinais."""
 
+from copy import deepcopy
+import weakref
 import numpy as np
 import pyqtgraph as pg
+import pandas as pd
+from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QCheckBox, QFileDialog, QFrame, QHBoxLayout, QLabel, QMainWindow, QMenu,
-    QMessageBox, QPushButton, QScrollArea, QVBoxLayout, QWidget,
+    QCheckBox,
+    QFileDialog,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QMenu,
+    QMessageBox,
+    QPushButton,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
 )
-
 from isq_dataanalysys import __version__
 from isq_dataanalysys.exportacao.csv_tratado import DadosTratados, ler_csv_tratado
 from .eixo_temporal import EixoDataHora, configurar_eixo_temporal
 from .exportacao import ExportacaoGraficos
 from .intervalo_temporal import PainelIntervaloTemporal, VinculoIntervalos
+
+
+# Referências de janelas sem pai Qt: permanecem abertas ao fechar a origem.
+_JANELAS_ABERTAS = set()
+
+
+def mostrar_resultado(origem, janela):
+    if not hasattr(origem, 'janelas_resultados'):
+        origem.janelas_resultados = []
+    origem.janelas_resultados.append(janela)
+    _JANELAS_ABERTAS.add(janela)
+    referencia_origem = weakref.ref(origem)
+    janela.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+
+    def liberar(*_):
+        _JANELAS_ABERTAS.discard(janela)
+        proprietario = referencia_origem()
+        lista = getattr(proprietario, 'janelas_resultados', [])
+        if janela in lista:
+            lista.remove(janela)
+
+    janela.destroyed.connect(liberar)
+    janela.show()
+    janela.raise_()
+    janela.activateWindow()
+    return janela
 
 
 class TelaDadosTratados(ExportacaoGraficos, QMainWindow):
@@ -171,7 +208,6 @@ class TelaDadosTratados(ExportacaoGraficos, QMainWindow):
     def _montar_graficos(self):
         self.vinculo_intervalos.limpar()
         self.grafico.clear()
-        self.vinculo_intervalos = VinculoIntervalos()
         self.graficos_eixos = {}
         self.curvas = {}
         grupos = {}
@@ -232,3 +268,105 @@ class TelaDadosTratados(ExportacaoGraficos, QMainWindow):
 
     def intervalo_exportacao(self):
         return self.painel_intervalo.intervalo_exportacao()
+
+
+CORES_EIXOS = {"X": "#ff0000", "Y": "#00ff00", "Z": "#0000ff"}
+
+
+class TelaGraficoUnificado(TelaDadosTratados):
+    def __init__(self, arquivo, cores, titulo, unidade_x, rotulo_y, faixa_x, log=False):
+        self.cores = cores.copy()
+        self.titulo_unificado = titulo
+        super().__init__()
+        self.carregar_dados(arquivo)
+        self.botao_abrir.hide()
+        self.rotulo_origem.hide()
+        self.setWindowTitle(f'Gráfico unificado — {titulo} — v{__version__}')
+        self.setToolTip('Cópia da visualização no momento da abertura. A seleção é independente da origem.')
+        plot = self.graficos_eixos[0]
+        plot.setLabel('left', rotulo_y, units=next(iter(self.canais.values()))['unidade'])
+        plot.setLogMode(x=False, y=log)
+        if log:
+            for canal, curva in self.curvas.items():
+                valores = self.df_sensores[canal].to_numpy()
+                curva.setData(self.tempo, np.where(valores > 0, valores, np.nan))
+                curva.dados_csv = valores.copy()
+        if unidade_x == 'Hz':
+            self.painel_intervalo.hide()
+            plot.setLabel('bottom', 'Frequência', units='Hz')
+        elif self.tempo[0] < self.tempo[-1]:
+            inicio = max(float(self.tempo[0]), float(faixa_x[0]))
+            fim = min(float(self.tempo[-1]), float(faixa_x[1]))
+            if inicio < fim:
+                self.painel_intervalo.definir_intervalo_segundos(inicio, fim)
+        plot.setXRange(*faixa_x, padding=0)
+        for texto, marcado in (('Selecionar todos', True), ('Ocultar todos', False)):
+            botao = QPushButton(texto)
+            botao.clicked.connect(lambda _=False, valor=marcado: self.selecionar_todos(valor))
+            self.layout_acoes.insertWidget(self.layout_acoes.count()-1, botao)
+
+    def grupo_do_canal(self, canal, info, rotulo):
+        return 0, self.titulo_unificado
+
+    def caneta_do_canal(self, canal, info, numero):
+        return pg.mkPen(self.cores[canal], width=1)
+
+    def selecionar_todos(self, marcado):
+        for campo in self.checkboxes_canais.values():
+            campo.setChecked(marcado)
+
+def abrir_grafico_unificado(origem):
+    if getattr(origem, 'df_sensores', None) is None:
+        return
+    plots = origem.plots_para_exportar()
+    base, colunas, canais, cores = None, {}, {}, {}
+    unidade = None
+    for plot in plots:
+        for curva in plot.listDataItems():
+            if not curva.isVisible():
+                continue
+            unidade_curva = plot.getAxis('left').labelUnits
+            if unidade is None:
+                unidade = unidade_curva
+            elif unidade != unidade_curva:
+                QMessageBox.warning(origem, 'Gráfico unificado', 'Selecione canais com a mesma unidade de medida.')
+                return
+            x, y = curva.getOriginalDataset()
+            if x is None or y is None or not len(x):
+                continue
+            x = np.asarray(x, dtype=float)
+            if base is None:
+                base = x.copy()
+            elif not np.array_equal(base, x):
+                QMessageBox.warning(origem, 'Gráfico unificado', 'Os canais têm bases diferentes.')
+                return
+            canal = origem._identidade_curva_csv(curva, len(colunas)+1)
+            if canal in colunas:
+                QMessageBox.warning(origem, 'Gráfico unificado', 'Há identidades de canais repetidas.')
+                return
+            colunas[canal] = np.array(getattr(curva, 'dados_csv', y), dtype=float, copy=True)
+            info = getattr(origem, 'canais', {}).get(canal)
+            if isinstance(info, dict):
+                canais[canal] = deepcopy(info)
+            else:
+                canais[canal] = dict(nome=origem.info_arquivo['nomes'][canal],
+                                     eixo=origem.info_arquivo['eixos'].get(canal, ''))
+            canais[canal]['unidade'] = plot.getAxis('left').labelUnits
+            cores[canal] = pg.mkPen(curva.opts['pen']).color().name()
+    if base is None:
+        QMessageBox.information(origem, 'Gráfico unificado', 'Selecione pelo menos um canal com dados.')
+        return
+    plot = plots[0]
+    espectral = plot.getAxis('bottom').labelUnits == 'Hz'
+    metadata = deepcopy(getattr(origem, 'metadados_tratados', {}))
+    metadata['descricao'] = getattr(origem, 'descricao_exportacao', '')
+    metadata['visualizacao'] = 'gráfico unificado; cópia independente'
+    titulo = plot.getAxis('left').labelText
+    janela = TelaGraficoUnificado(
+        DadosTratados(base, pd.DataFrame(colunas), canais,
+                      None if espectral else origem.inicio_para_exportar(), metadata),
+        cores, titulo, plot.getAxis('bottom').labelUnits, titulo,
+        plot.viewRange()[0], log=plot.getAxis('left').logMode,
+    )
+    janela.caminho_atual = getattr(origem, 'caminho_atual', None)
+    return mostrar_resultado(origem, janela)

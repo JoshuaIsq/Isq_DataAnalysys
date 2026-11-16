@@ -1,14 +1,17 @@
 from pathlib import Path
 from isq_dataanalysys import __version__
-
 import pyqtgraph as pg
 from PySide6.QtWidgets import (
-    QButtonGroup, QCheckBox, QComboBox, QFileDialog,
-    QHBoxLayout, QLabel, QMessageBox, QPushButton,
+    QButtonGroup,
+    QCheckBox,
+    QComboBox,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPushButton,
 )
-
 from isq_dataanalysys.interface.base import Tela
-from isq_dataanalysys.leitores.lynx import aviso_unidades, LinhaFinalIncompleta
+from isq_dataanalysys.leitores.lynx import aviso_unidades
 from isq_dataanalysys.leitores.extensometria import ler_lynx_extensometria
 from isq_dataanalysys.interface.eixo_temporal import EixoDataHora
 from .visualizacao_temporal import VisualizacaoTemporal
@@ -97,32 +100,14 @@ class TelaLynxExtensometria(VisualizacaoTemporal, Tela):
         self.criar_limites_visualizacao()
 
     def carregar_arquivo_lynx(self):
-        caminho, _ = QFileDialog.getOpenFileName(
-            self, "Abrir extensometria Lynx", "", "Arquivos CSV (*.csv)"
-        )
-        if not caminho:
-            return
-        try:
-            try:
-                self.importar_caminho(caminho)
-            except LinhaFinalIncompleta as erro:
-                resposta = QMessageBox.question(
-                    self, "Última linha incompleta",
-                    str(erro) + "\n\nDeseja tentar abrir ignorando somente essa última linha?",
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                    QMessageBox.StandardButton.No,
-                )
-                if resposta == QMessageBox.StandardButton.Yes:
-                    self.importar_caminho(caminho, ignorar_ultima_incompleta=True)
-        except (OSError, ValueError) as erro:
-            QMessageBox.warning(self, "Falha ao importar", str(erro))
+        return self.abrir_csv_lynx('Abrir extensometria Lynx')
 
     def importar_caminho(self, caminho, ignorar_ultima_incompleta=False):
         tempo, canais, mapa, info = ler_lynx_extensometria(caminho, ignorar_ultima_incompleta)
         # Só substitui o arquivo atual depois de validar a nova importação.
         self.tempo = tempo
         self.df_original = canais.copy()
-        self.df_sensores = canais.copy()
+        self.df_sensores = canais
         self.mapa_canais = mapa
         self.info_arquivo = info
         self.caminho_atual = Path(caminho)

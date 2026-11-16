@@ -1,10 +1,9 @@
 """Derivadas do deslocamento e comparação com a aceleração realmente integrada."""
-from copy import deepcopy
 
+from copy import deepcopy
 import numpy as np
 import pandas as pd
 from PySide6.QtWidgets import QPushButton, QMessageBox
-
 from isq_dataanalysys import __version__
 from isq_dataanalysys.exportacao.csv_tratado import DadosTratados
 from isq_dataanalysys.processamento.integracao import derivar_deslocamento

@@ -1,14 +1,12 @@
 """Diálogos de exportação compartilhados pelas telas de medição e resultados."""
+
 from pathlib import Path
 from datetime import datetime
 import numpy as np
 import pandas as pd
-from PySide6.QtWidgets import QFileDialog, QMessageBox
 import pyqtgraph as pg
-from isq_dataanalysys.exportacao.html import criar_figura_html
-from isq_dataanalysys.exportacao.svg import salvar_svg
+from PySide6.QtWidgets import QFileDialog, QMessageBox
 from isq_dataanalysys.leitores.metadados import ler_inicio_lynx
-from isq_dataanalysys.exportacao.csv_tratado import salvar_csv_tratado
 from isq_dataanalysys import __version__
 
 
@@ -30,6 +28,8 @@ class ExportacaoGraficos:
     def _identidade_curva_csv(self, curva, sequencia):
         """Resolve a identidade da coluna sem inferir canais por nomes repetidos."""
         canal = curva.property('canal_id')
+        if canal is not None:
+            return canal
         for atributo in ('curvas', 'curvas_ext', 'curvas_regua', 'curvas_lynx'):
             for chave, item in getattr(self, atributo, {}).items():
                 if item is curva:
@@ -124,6 +124,7 @@ class ExportacaoGraficos:
             QMessageBox.warning(self,'Exportação CSV','Escolha outro arquivo para preservar o arquivo de origem.')
             return
         try:
+            from isq_dataanalysys.exportacao.csv_tratado import salvar_csv_tratado
             salvar_csv_tratado(destino,tempo,dados,canais,inicio_csv=self.inicio_para_exportar(),metadados=metadata)
         except (OSError,ValueError) as erro:
             QMessageBox.warning(self,'Falha ao exportar CSV',str(erro))
@@ -174,6 +175,7 @@ class ExportacaoGraficos:
         caminho = Path(pasta) / nome
 
         try:
+            from isq_dataanalysys.exportacao.svg import salvar_svg
             salvar_svg(plots, caminho, descricao=getattr(self, "descricao_exportacao", ""),
                        titulo=self.windowTitle(), inicio=self.inicio_para_exportar())
         except Exception as erro:
@@ -222,6 +224,7 @@ class ExportacaoGraficos:
         caminho = Path(pasta) / nome
 
         try:
+            from isq_dataanalysys.exportacao.html import criar_figura_html
             figura = criar_figura_html(
                 plots,
                 inicio=self.inicio_para_exportar(),

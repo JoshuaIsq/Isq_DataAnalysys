@@ -1,11 +1,20 @@
 """Janelas independentes para os resultados temporais da acelerometria."""
+
 from copy import deepcopy
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QCheckBox,
-    QPushButton, QLabel, QMenu, QMessageBox, QScrollArea, QFrame,
+    QMainWindow,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QCheckBox,
+    QPushButton,
+    QLabel,
+    QMenu,
+    QMessageBox,
+    QScrollArea,
+    QFrame,
 )
 from .exportacao import ExportacaoGraficos
 from .eixo_temporal import EixoDataHora, configurar_eixo_temporal
@@ -13,27 +22,7 @@ from .intervalo_temporal import PainelIntervaloTemporal, VinculoIntervalos
 from isq_dataanalysys.processamento.integracao import integrar_relativo, corrigir_rampa_deslocamento
 from isq_dataanalysys.leitores.acelerometria import EIXOS, EIXO_DESCONHECIDO
 from isq_dataanalysys import __version__ as VERSAO
-
-
-# Janelas sem pai Qt continuam abertas mesmo após fechar a origem.
-# A referência fica aqui até a janela ser destruída e seus dados liberados.
-_JANELAS_ABERTAS = set()
-
-
-def mostrar_resultado(origem, janela):
-    origem.janelas_resultados.append(janela)
-    _JANELAS_ABERTAS.add(janela)
-    janela.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-
-    def liberar():
-        _JANELAS_ABERTAS.discard(janela)
-        origem.janelas_resultados.remove(janela)
-
-    janela.destroyed.connect(liberar)
-    janela.show()
-    janela.raise_()
-    janela.activateWindow()
-    return janela
+from .dados_tratados import mostrar_resultado
 
 
 class TelaIntegracao(ExportacaoGraficos, QMainWindow):

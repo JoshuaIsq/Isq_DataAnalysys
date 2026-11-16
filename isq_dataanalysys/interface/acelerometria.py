@@ -1,24 +1,35 @@
 from pathlib import Path
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QCheckBox, QFrame, QSizePolicy,
-                               QPushButton, QDoubleSpinBox, QLabel, QFileDialog, QMessageBox,)
-from isq_dataanalysys.interface.base import Tela
-from isq_dataanalysys.leitores.acelerometria import (
-    EIXOS, ler_lynx_acelerometria,
+from PySide6.QtWidgets import (
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QCheckBox,
+    QFrame,
+    QSizePolicy,
+    QPushButton,
+    QDoubleSpinBox,
+    QLabel,
+    QMessageBox,
 )
+from isq_dataanalysys.interface.base import Tela
+from isq_dataanalysys.leitores.acelerometria import EIXOS, ler_lynx_acelerometria
 from isq_dataanalysys.leitores.lynx import LinhaFinalIncompleta, aviso_unidades
 from isq_dataanalysys.processamento.sinais import Processamento
-from isq_dataanalysys.processamento.cinematica import converter_aceleracao, integrar_segmento, FATOR_G_MM_S2
+from isq_dataanalysys.processamento.cinematica import (
+    converter_aceleracao,
+    integrar_segmento,
+    FATOR_G_MM_S2,
+)
 from isq_dataanalysys.interface.cinematica import TelaCinematica
-from isq_dataanalysys.interface.integracao import mostrar_resultado
-from isq_dataanalysys.interface.passa_banda import ControlePassaBanda
+from .dados_tratados import mostrar_resultado, abrir_grafico_unificado, CORES_EIXOS
+from .controles import ControlePassaBanda
 from isq_dataanalysys import __version__ as VERSAO
 from isq_dataanalysys.interface.eixo_temporal import EixoDataHora, configurar_eixo_temporal
 from .intervalo_temporal import VinculoIntervalos
-from .visualizacao_acelerometria import VisualizacaoAcelerometria
+from .visualizacao_temporal import VisualizacaoAcelerometria
 from .layout_acelerometria import montar_lateral_acelerometria
-from .grafico_unificado import abrir_grafico_unificado, CORES_EIXOS
 
 
 class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
@@ -45,6 +56,8 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
         self.info_arquivo = {}
         self.info_rms = None
         self.info_fft = None
+        self.info_psd = None
+        self._cache_visualizacao = None
         self.abrir.clicked.connect(self.carregar_arquivo_lynx)
         self.criar_controle_passa_banda()
         self.criar_controles_rms()
@@ -81,6 +94,7 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
             return False
         self.df_tratado_g = resultado
         self.df_sensores = exibido
+        self._cache_visualizacao = None
         self.config_filtros = proposta.copy()
         self.info_processamento = info
         self.atualizar_indicacao_filtros()
@@ -161,7 +175,7 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
             "QPushButton:disabled {background: #d4dce5; color: #536170;}"
         )
         linha.addWidget(self.botao_velocidade)
-        self.botao_converter = QPushButton('Converter g → mm/s² (×9810)')
+        self.botao_converter = QPushButton('Converter g → mm/s²')
         self.botao_converter.setObjectName('converter_aceleracao')
         self.botao_converter.setCheckable(True)
         self.botao_converter.setEnabled(False)
@@ -174,26 +188,20 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
         self.botao_unificado.clicked.connect(lambda: abrir_grafico_unificado(self))
         linha.addWidget(self.botao_unificado)
         self.rotulo_metodo_integracao = QLabel()
+        self.rotulo_metodo_integracao.setText(
+            "O sinal tratado em g é convertido para mm/s² multiplicando por 9810. "
+            "A velocidade usa a soma acumulada x[i]·dt, incluindo a primeira amostra, "
+            "seguida da retirada de uma reta de mínimos quadrados. "
+            "A posição integra a velocidade corrigida e retira um polinômio de grau 2. "
+            "Os cálculos usam o registro completo; o intervalo seleciona a visualização, "
+            "a exportação e as estatísticas."
+        )
         self.rotulo_metodo_integracao.setWordWrap(True)
         self.rotulo_metodo_integracao.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         linha.addWidget(self.rotulo_metodo_integracao, 1)
         self.layout_controles.addWidget(painel, 5, 0, 1, 4)
         self.botao_velocidade.clicked.connect(self.gerar_velocidade)
-        self.atualizar_metodo_integracao()
 
-    def atualizar_metodo_integracao(self):
-        self.rotulo_metodo_integracao.setText(
-            'Aceleração em g → passa-banda → converter ×9810 para mm/s².\n'
-            'Velocidade: soma X·dt → subtrair ajuste linear por mínimos quadrados.\n'
-            'Posição: soma da velocidade corrigida ·dt → subtrair ajuste de grau 2.\n'
-            'Cada arquivo é um segmento independente, sem retirada automática da média da aceleração. '
-            'FFT e PSD usam a aceleração tratada em g, antes da conversão. '
-            'Os ajustes removem componentes lentas; não determinam a posição física absoluta.'
-        )
-        self.botao_velocidade.setToolTip(
-            'Converta para mm/s² primeiro. Integra todo o sinal temporal e subtrai a reta '
-            'ajustada à velocidade, mesmo quando FFT/PSD/RMS está visível.'
-        )
 
     def criar_controles_rms(self):
         linha = QHBoxLayout()
@@ -209,7 +217,6 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
         self.campo_janela_rms.setEnabled(False)
         self.checkbox_log_rms = QCheckBox("RMS em escala logarítmica")
         self.checkbox_log_rms.setEnabled(False)
-        self.checkbox_log_rms.setToolTip("RMS igual a zero fica sem ponto na escala logarítmica.")
         self.botao_fft = QPushButton("FFT")
         self.botao_fft.setCheckable(True)
         self.botao_fft.setEnabled(False)
@@ -241,24 +248,12 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
         self.checkbox_log_rms.toggled.connect(self.mudar_visualizacao)
 
     def carregar_arquivo_lynx(self):
-        caminho, _ = QFileDialog.getOpenFileName(self, "Abrir acelerometria Lynx", "", "Arquivos CSV (*.csv)")
-        if caminho:
-            try:
-                self.importar_caminho(caminho)
-            except LinhaFinalIncompleta as erro:
-                resposta = QMessageBox.question(
-                    self, "Última linha incompleta",
-                    str(erro) + "\n\nDeseja ignorar somente essa última linha?",
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                    QMessageBox.StandardButton.No,
-                )
-                if resposta == QMessageBox.StandardButton.Yes:
-                    self.importar_caminho(caminho, ignorar_ultima_incompleta=True)
+        return self.abrir_csv_lynx('Abrir acelerometria Lynx')
 
     def importar_caminho(self, caminho, ignorar_ultima_incompleta=False):
         try:
             tempo, canais, sensores, info = ler_lynx_acelerometria(caminho, ignorar_ultima_incompleta)
-            fs = Processamento.validar_dados(tempo, canais)
+            fs = info["fs"]  # O leitor já validou tempo e canais.
         except LinhaFinalIncompleta:
             raise
         except (OSError, ValueError) as erro:
@@ -266,8 +261,9 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
             return False
         self.tempo = tempo
         self.df_original = canais.copy()
-        self.df_sensores = canais.copy()
-        self.df_tratado_g = canais.copy()
+        self.df_sensores = canais
+        self.df_tratado_g = canais
+        self._cache_visualizacao = None
         self.botao_converter.blockSignals(True)
         self.botao_converter.setChecked(False)
         self.botao_converter.blockSignals(False)
@@ -340,6 +336,8 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
         grafico.setLabel("bottom", "Tempo", units="s")
         grafico.setLabel("left", "Aceleração", units="g")
         grafico.showGrid(x=True, y=True, alpha=0.25)
+        grafico.setDownsampling(auto=True, mode="peak")
+        grafico.setClipToView(True)
         grafico.addLegend(colCount=3, offset=(10, 5), labelTextColor="#333333")
         for lado in ("left", "bottom"):
             grafico.getAxis(lado).setPen("#555555")
@@ -457,42 +455,13 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
         psd = self.botao_psd.isChecked()
         log = rms and self.checkbox_log_rms.isChecked()
 
-        self.info_rms = None
-        self.info_fft = None
-        self.info_psd = None
-
-        if fft:
-            tempo_plot, dados_plot, self.info_fft = Processamento.fft_ac(
-                self.tempo, self.df_tratado_g
-            )
-            rotulo, unidade = "Amplitude de pico (AC)", "g"
-            titulo_modo = "FFT"
-
-        elif psd:
-            tempo_plot, dados_plot, self.info_psd = Processamento.psd_ac(self.tempo, self.df_tratado_g)
-            rotulo, unidade = 'PSD', 'g²/Hz'
-            titulo_modo = 'PSD'
-
-        elif rms:
-            tempo_plot, dados_plot, self.info_rms = Processamento.rms_ac(
-                self.tempo,
-                self.df_sensores,
-                self.campo_janela_rms.value(),
-            )
-            if not self.botao_converter.isChecked():
-                dados_plot = dados_plot * 1000
-            rotulo, unidade = 'RMS AC', ('mm/s²' if self.botao_converter.isChecked() else 'mg')
-            titulo_modo = "RMS AC"
-
-        else:
-            tempo_plot, dados_plot = self.tempo, self.df_sensores
-            rotulo, unidade = "Aceleração", self.unidade_aceleracao
-            titulo_modo = "sinal no tempo"
-
-        self.curvas_lynx.clear()
+        modo_dados = "fft" if fft else "psd" if psd else "rms" if rms else "tempo"
+        tempo_plot, dados_plot, info, rotulo, unidade, titulo_modo = self.dados_visualizacao(modo_dados)
+        self.info_rms = info if rms else None
+        self.info_fft = info if fft else None
+        self.info_psd = info if psd else None
 
         for numero, grafico in self.graficos_eixos.items():
-            grafico.clear()
             grafico.setLogMode(x=False, y=log)
             titulo_sensor = self.info_arquivo['rotulos_sensores'][numero - 1]
             grafico.setTitle(
@@ -514,16 +483,21 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
                 if log:
                     valores = np.where(valores > 0, valores, np.nan)
 
-                curva = self.graficos_eixos[numero].plot(
-                    tempo_plot,
-                    valores,
-                    pen=pg.mkPen(cores.get(eixo, '#666666'), width=1),
-                    name=f"Canal {n} — {eixo}: {self.info_arquivo['nomes'][n]}",
-                    connect="finite",
-                )
+                chave = (numero, eixo)
+                curva = self.curvas_lynx.get(chave)
+                if curva is None:
+                    curva = self.graficos_eixos[numero].plot(
+                        pen=pg.mkPen(cores.get(eixo, '#666666'), width=1),
+                        name=f"Canal {n} — {eixo}: {self.info_arquivo['nomes'][n]}",
+                        connect="finite",
+                    )
+                    curva.setProperty('canal_id', n)
+                    self.curvas_lynx[chave] = curva
+                curva.setData(tempo_plot, valores)
                 if log:
                     curva.dados_csv = np.array(dados_plot[n].to_numpy(),copy=True)
-                self.curvas_lynx[(numero, eixo)] = curva
+                elif hasattr(curva, 'dados_csv'):
+                    del curva.dados_csv
 
         self.atualizar_visibilidade()
         self.atualizar_limites_visualizacao()
@@ -574,6 +548,29 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
             f"{len(self.tempo)} amostras | {modo}"
         )
 
+    def dados_visualizacao(self, modo):
+        """Reutiliza somente o último cálculo; mudar escala/log não recalcula o sinal."""
+        if modo == 'tempo':
+            return self.tempo, self.df_sensores, None, 'Aceleração', self.unidade_aceleracao, 'sinal no tempo'
+        convertido = self.botao_converter.isChecked()
+        chave = (modo, self.campo_janela_rms.value() if modo == 'rms' else None,
+                 convertido if modo == 'rms' else False)
+        if self._cache_visualizacao is not None and self._cache_visualizacao[0] == chave:
+            return self._cache_visualizacao[1]
+        if modo == 'fft':
+            x, dados, info = Processamento.fft_ac(self.tempo, self.df_tratado_g)
+            resultado = x, dados, info, 'Amplitude de pico (AC)', 'g', 'FFT'
+        elif modo == 'psd':
+            x, dados, info = Processamento.psd_ac(self.tempo, self.df_tratado_g)
+            resultado = x, dados, info, 'PSD', 'g²/Hz', 'PSD'
+        else:
+            x, dados, info = Processamento.rms_ac(self.tempo, self.df_sensores, self.campo_janela_rms.value())
+            if not convertido:
+                dados = dados * 1000
+            resultado = x, dados, info, 'RMS AC', 'mm/s²' if convertido else 'mg', 'RMS AC'
+        self._cache_visualizacao = chave, resultado
+        return resultado
+
     def gerar_velocidade(self):
         if self.df_sensores is None:
             return
@@ -600,7 +597,8 @@ class TelaLynxAcelerometria(VisualizacaoAcelerometria, Tela):
                 metadados={'fator_g_mm_s2': FATOR_G_MM_S2,
                            'filtros_aceleracao': self.config_filtros.copy(),
                            'media_aceleracao_retirada': False},
-                intervalo_visualizacao=self._intervalo_temporal,
+                intervalo_visualizacao=(self._intervalo_temporal if self.modo_espectral()
+                                         else self.intervalo_exportacao()),
             )
         except ValueError as erro:
             QMessageBox.warning(self, "Falha ao integrar", str(erro))

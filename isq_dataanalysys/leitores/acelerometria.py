@@ -1,20 +1,15 @@
 """Importa cada canal em g, sem exigir trios nem nomes/eixos exclusivos."""
 import re
 import unicodedata
-
 from isq_dataanalysys.leitores.lynx import ler_canais_lynx
 
 EIXO_DESCONHECIDO = "Sem eixo"
 EIXOS = ("X", "Y", "Z", EIXO_DESCONHECIDO)
-
-# Letras isoladas ou após o número do sensor, como no formato antigo "ACC1X".
-# Também aceita sublinhados/colchetes ou o eixo antes do nome do sensor.
-# Não confunde o X de "Aux" ou de "XYZ" com um eixo.
 _EIXO = re.compile(r"(?<![^\W\d_])([XYZ])(?![^\W_])", re.IGNORECASE)
 
 
 def _identificar_eixo(nome):
-    texto = unicodedata.normalize("NFKC", nome).strip()
+    texto = unicodedata.normalize("NFKC", nome).strip() 
     texto = re.sub(r"\s*[\[(]\s*g\s*[\])]\s*$", "", texto, flags=re.IGNORECASE)
     encontrados = list(_EIXO.finditer(texto))
     if len(encontrados) != 1:

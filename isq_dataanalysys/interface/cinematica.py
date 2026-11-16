@@ -1,22 +1,36 @@
 """Resultados do fluxo Sum[Xdt], com ajustes após cada integração."""
-from copy import deepcopy
 
+from copy import deepcopy
 import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QAbstractItemView, QDialog, QDialogButtonBox, QHeaderView, QLabel,
-    QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout,
+    QAbstractItemView,
+    QDialog,
+    QDialogButtonBox,
+    QHeaderView,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
 )
-
 from isq_dataanalysys import __version__
 from isq_dataanalysys.exportacao.csv_tratado import DadosTratados
-from isq_dataanalysys.processamento.cinematica import integrar_segmento, retirar_ajuste, estatisticas
+from isq_dataanalysys.processamento.cinematica import (
+    integrar_segmento,
+    retirar_ajuste,
+    estatisticas,
+)
 from isq_dataanalysys.processamento.sinais import Processamento
-from .dados_tratados import TelaDadosTratados
-from .integracao import mostrar_resultado
-from .passa_banda import ControlePassaBanda
-from .grafico_unificado import abrir_grafico_unificado, CORES_EIXOS
+from .dados_tratados import (
+    TelaDadosTratados,
+    mostrar_resultado,
+    abrir_grafico_unificado,
+    CORES_EIXOS,
+)
+from .controles import ControlePassaBanda
 
 
 class TelaCinematica(TelaDadosTratados):

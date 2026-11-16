@@ -1,16 +1,15 @@
 """Seleção das análises implementadas e referências às janelas abertas."""
-from importlib.resources import as_file, files
 
+from importlib.resources import as_file, files
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import QWidget, QLabel, QPushButton, QVBoxLayout, QMenu, QMessageBox
-
 from isq_dataanalysys import __version__
 from isq_dataanalysys.aplicacao import diagnostico
 from .acelerometria import TelaLynxAcelerometria
 from .extensometria import TelaLynxExtensometria
 from .regua import TelaLynxReguaPotenciometrica
-from .dados_tratados import TelaDadosTratados
+from .dados_tratados import TelaDadosTratados, mostrar_resultado
 
 
 class TelaInicial(QWidget):
@@ -23,7 +22,8 @@ class TelaInicial(QWidget):
         self.janela_acelerometria = None
         self.janela_extensometria = None
         self.janela_regua = None
-        self.janelas_dados_tratados = []
+        self.janelas_resultados = []
+        self.janelas_dados_tratados = self.janelas_resultados
         layout = QVBoxLayout(self)
         layout.setContentsMargins(30, 25, 30, 25)
         layout.setSpacing(15)
@@ -51,27 +51,29 @@ class TelaInicial(QWidget):
         layout.addStretch(1)
 
     def abrir_acelerometria(self):
-        if self.janela_acelerometria is None:
-            self.janela_acelerometria = TelaLynxAcelerometria()
-        self.exibir(self.janela_acelerometria)
+        return self._abrir_analise('janela_acelerometria', TelaLynxAcelerometria)
 
     def abrir_extensometria(self):
-        if self.janela_extensometria is None:
-            self.janela_extensometria = TelaLynxExtensometria()
-        self.exibir(self.janela_extensometria)
+        return self._abrir_analise('janela_extensometria', TelaLynxExtensometria)
 
     def abrir_regua(self):
-        if self.janela_regua is None:
-            self.janela_regua = TelaLynxReguaPotenciometrica()
-        self.exibir(self.janela_regua)
+        return self._abrir_analise('janela_regua', TelaLynxReguaPotenciometrica)
+
+    def _abrir_analise(self, atributo, classe):
+        try:
+            janela = getattr(self, atributo)
+            if janela is None:
+                janela = classe()
+                setattr(self, atributo, janela)
+        except RuntimeError as erro:
+            QMessageBox.critical(self, 'Instalação incompatível', str(erro))
+            return None
+        self.exibir(janela)
+        return janela
 
     def abrir_dados_tratados(self):
         janela = TelaDadosTratados()
-        self.janelas_dados_tratados.append(janela)
-        janela.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        janela.destroyed.connect(lambda: self.janelas_dados_tratados.remove(janela))
-        self.exibir(janela)
-        return janela
+        return mostrar_resultado(self, janela)
 
     @staticmethod
     def exibir(janela):

@@ -1,15 +1,41 @@
 from PySide6.QtWidgets import (
-    QGridLayout, QMainWindow, QWidget, QFrame, QHBoxLayout, QVBoxLayout,
-    QLabel, QCheckBox, QPushButton, QMenu, QSpinBox, QMessageBox, QScrollArea
+    QGridLayout,
+    QMainWindow,
+    QWidget,
+    QFrame,
+    QHBoxLayout,
+    QVBoxLayout,
+    QLabel,
+    QCheckBox,
+    QPushButton,
+    QMenu,
+    QSpinBox,
+    QMessageBox,
+    QScrollArea,
+    QFileDialog,
 )
 from isq_dataanalysys.interface.controles import ControleFiltros
 from isq_dataanalysys.processamento.sinais import Processamento
 import pyqtgraph as pg
-
+import inspect
 from .exportacao import ExportacaoGraficos
-from .referencia_temporal import PainelReferenciaTemporal
-from .eixo_temporal import configurar_eixo_temporal
+from .eixo_temporal import PainelReferenciaTemporal, configurar_eixo_temporal
 from isq_dataanalysys.leitores.metadados import ler_referencia_temporal
+from isq_dataanalysys.leitores.lynx import LinhaFinalIncompleta
+
+
+def verificar_processamento():
+    """Detecta uma instalação parcial antes de conectar os botões aos cálculos."""
+    esperados = ("aplicar", "validar_dados", "taxa_amostragem", "fft_ac", "psd_ac",
+                 "rms_ac", "quantidade", "_preparar_dados", "_quadro", "_retirar_tendencia", "_rms")
+    faltando = [nome for nome in esperados if not callable(getattr(Processamento, nome, None))]
+    if faltando:
+        caminho = inspect.getfile(Processamento)
+        raise RuntimeError(
+            "A pasta de processamento está incompleta ou pertence a outra versão.\n"
+            f"Arquivo carregado: {caminho}\nMétodos ausentes: {', '.join(faltando)}.\n"
+            "Substitua juntos os cinco arquivos de processamento e reinicie o programa."
+        )
 
 
 class Tela(ExportacaoGraficos, QMainWindow):
@@ -17,6 +43,7 @@ class Tela(ExportacaoGraficos, QMainWindow):
     REFERENCIA_EDITAVEL = True
 
     def __init__(self):
+        verificar_processamento()
         super().__init__()
         self.setWindowTitle("Analise de dados")
         self.resize(1000, 600)
@@ -48,6 +75,7 @@ class Tela(ExportacaoGraficos, QMainWindow):
 
         layout_canais.addStretch()
         rolagem_canais = QScrollArea()
+        self.rolagem_canais = rolagem_canais
         rolagem_canais.setWidgetResizable(True)
         rolagem_canais.setWidget(painel_canais)
         rolagem_canais.setMinimumWidth(240)
@@ -86,6 +114,10 @@ class Tela(ExportacaoGraficos, QMainWindow):
         for nome in self.FILTROS_DISPONIVEIS:
             atributo, rotulo, inicial, linha, coluna = definicoes[nome]
             controle = ControleFiltros(rotulo, valor_inicial=inicial)
+            if nome in ("offset", "media_movel"):
+                controle.campo.setDecimals(0)
+                controle.campo.setRange(1, 100000000)
+                controle.campo.setSuffix(" amostras")
             setattr(self, atributo, controle)
             self.controles_filtros[nome] = controle
             layout_controles.addWidget(controle, linha, coluna)
@@ -153,12 +185,33 @@ class Tela(ExportacaoGraficos, QMainWindow):
             plots = [self.grafico.getPlotItem()]
         else:
             plots = list(self.graficos_eixos.values())
-        botao_fft = getattr(self, "botao_fft", None)
-        fft = botao_fft is not None and botao_fft.isChecked()
+        espectral = any(getattr(self, nome, None) is not None and getattr(self, nome).isChecked()
+                        for nome in ("botao_fft", "botao_psd"))
         for plot in plots:
-            configurar_eixo_temporal(plot, None if fft else self.inicio_arquivo)
-            if fft:
+            configurar_eixo_temporal(plot, None if espectral else self.inicio_arquivo)
+            if espectral:
                 plot.setLabel("bottom", "Frequência", units="Hz")
+
+    def abrir_csv_lynx(self, titulo):
+        """Diálogo comum, incluindo a confirmação de descarte da última linha."""
+        caminho, _ = QFileDialog.getOpenFileName(self, titulo, "", "Arquivos CSV (*.csv)")
+        if not caminho:
+            return False
+        try:
+            try:
+                return self.importar_caminho(caminho)
+            except LinhaFinalIncompleta as erro:
+                resposta = QMessageBox.question(
+                    self, "Última linha incompleta",
+                    str(erro) + "\n\nDeseja ignorar somente essa última linha?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No,
+                )
+                if resposta == QMessageBox.StandardButton.Yes:
+                    return self.importar_caminho(caminho, ignorar_ultima_incompleta=True)
+        except (OSError, ValueError) as erro:
+            QMessageBox.warning(self, "Falha ao importar", str(erro))
+        return False
 
     def registrar_parametro(self, nome):
         if getattr(self, "df_original", None) is None:
@@ -188,9 +241,8 @@ class Tela(ExportacaoGraficos, QMainWindow):
 
     def atualizar_indicacao_filtros(self):
         partes = []
-        for nome in ("calibracao", "outliers", "offset", "passa_alta", "passa_baixa", "media_movel"):
+        for nome, controle in self.controles_filtros.items():
             if nome in self.config_filtros:
-                controle = self.controles_filtros[nome]
                 partes.append(f"{controle.nome}: {self.config_filtros[nome]:g}{controle.campo.suffix()}")
         if "outliers" in self.config_filtros:
             partes.append(f"janela de outliers: {self.config_filtros['janela_outliers']} amostras")
@@ -209,7 +261,8 @@ class Tela(ExportacaoGraficos, QMainWindow):
             self.grafico.plot(self.tempo, self.df_sensores[coluna].to_numpy(), pen=pg.intColor(numero))
 
     def criar_graficos(self, layout_direito):
-        self.grafico = pg.PlotWidget()
+        from .eixo_temporal import EixoDataHora
+        self.grafico = pg.PlotWidget(axisItems={"bottom": EixoDataHora(orientation="bottom")})
         self.grafico.setBackground('w')
         self.grafico.showGrid(x=True, y=True, alpha=0.25)
         self.grafico.setLabel('bottom', 'Tempo', units='s')

@@ -1,4 +1,5 @@
 """Intervalo visual em minutos de gravação, sem modificar sinais ou integrais."""
+
 import numpy as np
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QWidget, QHBoxLayout, QLabel, QDoubleSpinBox, QPushButton, QMessageBox

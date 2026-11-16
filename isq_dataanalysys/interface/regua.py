@@ -1,12 +1,11 @@
 """Análise dos deslocamentos medidos por réguas potenciométricas em mm."""
+
 from pathlib import Path
-
 import pyqtgraph as pg
-from PySide6.QtWidgets import QCheckBox, QFileDialog, QLabel, QMessageBox
-
+from PySide6.QtWidgets import QCheckBox, QLabel, QMessageBox
 from isq_dataanalysys import __version__
 from isq_dataanalysys.leitores.regua import ler_lynx_regua
-from isq_dataanalysys.leitores.lynx import LinhaFinalIncompleta, aviso_unidades
+from isq_dataanalysys.leitores.lynx import aviso_unidades
 from .base import Tela
 from .eixo_temporal import EixoDataHora
 from .visualizacao_temporal import VisualizacaoTemporal
@@ -51,27 +50,14 @@ class TelaLynxReguaPotenciometrica(VisualizacaoTemporal, Tela):
         layout_direito.addWidget(self.grafico, 1)
 
     def carregar_arquivo_lynx(self):
-        caminho, _ = QFileDialog.getOpenFileName(self, "Abrir régua potenciométrica Lynx", "", "Arquivos CSV (*.csv)")
-        if not caminho:
-            return
-        try:
-            try:
-                self.importar_caminho(caminho)
-            except LinhaFinalIncompleta as erro:
-                resposta = QMessageBox.question(self, "Última linha incompleta",
-                    str(erro) + "\n\nDeseja tentar abrir ignorando somente essa última linha?",
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
-                if resposta == QMessageBox.StandardButton.Yes:
-                    self.importar_caminho(caminho, ignorar_ultima_incompleta=True)
-        except (OSError, ValueError) as erro:
-            QMessageBox.warning(self, "Falha ao importar", str(erro))
+        return self.abrir_csv_lynx('Abrir régua potenciométrica Lynx')
 
     def importar_caminho(self, caminho, ignorar_ultima_incompleta=False):
         tempo, canais, mapa, info = ler_lynx_regua(caminho, ignorar_ultima_incompleta)
         # Valida o arquivo inteiro antes de substituir o estado da janela.
         self.tempo = tempo
         self.df_original = canais.copy()
-        self.df_sensores = canais.copy()
+        self.df_sensores = canais
         self.mapa_canais = mapa
         self.info_arquivo = info
         self.caminho_atual = Path(caminho)
